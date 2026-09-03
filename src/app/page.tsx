@@ -41,6 +41,10 @@ import BulkOperationsView from "@/components/views/bulk-operations-view";
 import AuditTrailView from "@/components/views/audit-trail-view";
 import CustomDashboardView from "@/components/views/custom-dashboard-view";
 import WebhooksView from "@/components/views/webhooks-view";
+import PaidNewslettersView from "@/components/views/paid-newsletters-view";
+import CoursesView from "@/components/views/courses-view";
+import WhiteLabelView from "@/components/views/white-label-view";
+import SponsoredMarketplaceView from "@/components/views/sponsored-marketplace-view";
 import { getSites, logout } from "@/lib/api";
 import type { Article } from "@/lib/api";
 import { PageHeader } from "@/components/app/page-header";
@@ -195,6 +199,10 @@ export default function HomePage() {
       case "audit": return <AuditTrailView siteId={effectiveSiteId} />;
       case "custom-dashboard": return <CustomDashboardView siteId={effectiveSiteId} />;
       case "webhooks": return <WebhooksView siteId={effectiveSiteId} />;
+      case "paid-newsletters": return <PaidNewslettersView siteId={effectiveSiteId} />;
+      case "courses": return <CoursesView siteId={effectiveSiteId} />;
+      case "white-label": return <WhiteLabelView siteId={effectiveSiteId} organizationId={selectedSiteId} />;
+      case "sponsored": return <SponsoredMarketplaceView siteId={effectiveSiteId} />;
       case "billing": return <BillingView />
       case "ai-writer": return <ArticlesView siteId={effectiveSiteId} onEditArticle={handleEditArticle} />;
       case "seo": return <AnalyticsView siteId={effectiveSiteId} />;

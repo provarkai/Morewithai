@@ -40,6 +40,10 @@ import {
   Layers,
   History,
   Webhook as WebhookIcon,
+  // Marketplace
+  GraduationCap,
+  Handshake,
+  Palette,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { useQuery } from "@tanstack/react-query";
@@ -111,6 +115,15 @@ const navGroups: NavGroup[] = [
       { key: "products", title: "Products", icon: Package },
       { key: "ads", title: "Ads", icon: Megaphone },
       { key: "landing-pages", title: "Landing Pages", icon: LayoutTemplate },
+      { key: "paid-newsletters", title: "Paid Newsletters", icon: Mail },
+      { key: "courses", title: "Courses", icon: GraduationCap },
+    ],
+  },
+  {
+    label: "Marketplace",
+    items: [
+      { key: "sponsored", title: "Sponsored Content", icon: Handshake },
+      { key: "white-label", title: "White-Label Portal", icon: Palette },
     ],
   },
   {
