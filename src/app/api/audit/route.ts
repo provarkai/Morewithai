@@ -1,15 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth/guards';
-import { getAuditLogs } from '@/lib/operations/audit.service';
+import { requirePermission } from '@/lib/auth/guards';
+import { getAuditTrail, getRecentActivity, getAuditStats } from '@/lib/audit/audit-trail.service';
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAuth();
-    const sp = req.nextUrl.searchParams;
-    const logs = await getAuditLogs({ siteId: sp.get('siteId') || undefined, action: sp.get('action') || undefined, resource: sp.get('resource') || undefined, page: Number(sp.get('page')) || 1, limit: Number(sp.get('limit')) || 50 });
-    return NextResponse.json(logs);
+    await requirePermission('articles.view');
+    const siteId = req.nextUrl.searchParams.get('siteId');
+    const resource = req.nextUrl.searchParams.get('resource');
+    const resourceId = req.nextUrl.searchParams.get('resourceId');
+    const action = req.nextUrl.searchParams.get('action') || 'trail';
+    const limit = parseInt(req.nextUrl.searchParams.get('limit') || '30');
+
+    if (!siteId) return NextResponse.json({ error: 'siteId required' }, { status: 400 });
+
+    if (action === 'activity') {
+      const activity = await getRecentActivity(siteId, limit);
+      return NextResponse.json({ activity });
+    }
+
+    if (action === 'stats') {
+      const days = parseInt(req.nextUrl.searchParams.get('days') || '30');
+      const stats = await getAuditStats(siteId, days);
+      return NextResponse.json(stats);
+    }
+
+    if (resource && resourceId) {
+      const trail = await getAuditTrail(siteId, resource, resourceId, limit);
+      return NextResponse.json(trail);
+    }
+
+    const activity = await getRecentActivity(siteId, limit);
+    return NextResponse.json({ activity });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Failed';
-    return NextResponse.json({ error: msg }, { status: msg.includes('Unauthorized') ? 401 : 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed' }, { status: 500 });
   }
 }

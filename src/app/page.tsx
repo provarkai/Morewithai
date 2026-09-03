@@ -36,6 +36,11 @@ import { IntelligenceView } from "@/components/views/intelligence-view";
 import { CommandCenterView } from "@/components/views/command-center-view";
 import { PortfolioView } from "@/components/views/portfolio-view";
 import { BillingView } from "@/components/views/billing-view";
+import AlertsView from "@/components/views/alerts-view";
+import BulkOperationsView from "@/components/views/bulk-operations-view";
+import AuditTrailView from "@/components/views/audit-trail-view";
+import CustomDashboardView from "@/components/views/custom-dashboard-view";
+import WebhooksView from "@/components/views/webhooks-view";
 import { getSites, logout } from "@/lib/api";
 import type { Article } from "@/lib/api";
 import { PageHeader } from "@/components/app/page-header";
@@ -185,6 +190,11 @@ export default function HomePage() {
       case "command-workflows": return <CommandCenterView siteId={effectiveSiteId} subView="workflows" />;
       case "command-agents": return <CommandCenterView siteId={effectiveSiteId} subView="agents" />;
       case "command-economics": return <CommandCenterView siteId={effectiveSiteId} subView="economics" />;
+      case "alerts": return <AlertsView siteId={effectiveSiteId} />;
+      case "bulk-ops": return <BulkOperationsView siteId={effectiveSiteId} />;
+      case "audit": return <AuditTrailView siteId={effectiveSiteId} />;
+      case "custom-dashboard": return <CustomDashboardView siteId={effectiveSiteId} />;
+      case "webhooks": return <WebhooksView siteId={effectiveSiteId} />;
       case "billing": return <BillingView />
       case "ai-writer": return <ArticlesView siteId={effectiveSiteId} onEditArticle={handleEditArticle} />;
       case "seo": return <AnalyticsView siteId={effectiveSiteId} />;

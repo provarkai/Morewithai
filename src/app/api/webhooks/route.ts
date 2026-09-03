@@ -1,41 +1,67 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth/guards';
-import { listWebhooks, createWebhook, deleteWebhook } from '@/lib/operations/webhook.service';
+import { requirePermission } from '@/lib/auth/guards';
+import { createWebhook, listWebhooks, updateWebhook, deleteWebhook, testWebhook, getWebhookDeliveries, WEBHOOK_EVENT_TYPES } from '@/lib/webhooks/webhook-builder.service';
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAuth();
+    await requirePermission('articles.view');
     const siteId = req.nextUrl.searchParams.get('siteId');
+    const action = req.nextUrl.searchParams.get('action');
+
+    if (action === 'events') {
+      return NextResponse.json(WEBHOOK_EVENT_TYPES);
+    }
+
     if (!siteId) return NextResponse.json({ error: 'siteId required' }, { status: 400 });
-    return NextResponse.json(await listWebhooks(siteId));
+
+    if (action === 'deliveries') {
+      const limit = parseInt(req.nextUrl.searchParams.get('limit') || '20');
+      const deliveries = await getWebhookDeliveries(siteId, limit);
+      return NextResponse.json({ deliveries });
+    }
+
+    const webhooks = await listWebhooks(siteId);
+    return NextResponse.json({ webhooks });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Failed';
-    return NextResponse.json({ error: msg }, { status: msg.includes('Unauthorized') ? 401 : 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed' }, { status: 500 });
   }
 }
+
 export async function POST(req: NextRequest) {
   try {
-    await requireAuth();
+    await requirePermission('articles.edit');
     const body = await req.json();
-    if (!body.siteId || !body.url) return NextResponse.json({ error: 'siteId and url required' }, { status: 400 });
-    const webhook = await createWebhook({ siteId: body.siteId, url: body.url, events: body.events || ['*'], secret: body.secret });
-    return NextResponse.json(webhook, { status: 201 });
+    const { action, siteId, webhookId, url, eventTypes } = body;
+
+    if (!siteId) return NextResponse.json({ error: 'siteId required' }, { status: 400 });
+
+    switch (action) {
+      case 'create': {
+        if (!url || !eventTypes?.length) {
+          return NextResponse.json({ error: 'url and eventTypes required' }, { status: 400 });
+        }
+        const webhook = await createWebhook(siteId, url, eventTypes);
+        return NextResponse.json(webhook);
+      }
+      case 'update': {
+        if (!webhookId) return NextResponse.json({ error: 'webhookId required' }, { status: 400 });
+        const updated = await updateWebhook(webhookId, siteId, { url, eventTypes, isActive: body.isActive });
+        return NextResponse.json(updated);
+      }
+      case 'delete': {
+        if (!webhookId) return NextResponse.json({ error: 'webhookId required' }, { status: 400 });
+        const deleted = await deleteWebhook(webhookId, siteId);
+        return NextResponse.json({ deleted });
+      }
+      case 'test': {
+        if (!webhookId) return NextResponse.json({ error: 'webhookId required' }, { status: 400 });
+        const delivery = await testWebhook(webhookId, siteId);
+        return NextResponse.json(delivery);
+      }
+      default:
+        return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+    }
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Failed';
-    return NextResponse.json({ error: msg }, { status: msg.includes('Unauthorized') ? 401 : 500 });
-  }
-}
-export async function DELETE(req: NextRequest) {
-  try {
-    await requireAuth();
-    const sp = req.nextUrl.searchParams;
-    const id = sp.get('id');
-    const siteId = sp.get('siteId');
-    if (!id || !siteId) return NextResponse.json({ error: 'id and siteId required' }, { status: 400 });
-    await deleteWebhook(id, siteId);
-    return NextResponse.json({ success: true });
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Failed';
-    return NextResponse.json({ error: msg }, { status: msg.includes('Unauthorized') ? 401 : 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed' }, { status: 500 });
   }
 }

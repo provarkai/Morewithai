@@ -35,6 +35,11 @@ import {
   Workflow,
   // Portfolio
   PieChart,
+  // Platform
+  Bell,
+  Layers,
+  History,
+  Webhook as WebhookIcon,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { useQuery } from "@tanstack/react-query";
@@ -121,6 +126,16 @@ const navGroups: NavGroup[] = [
     items: [
       { key: "subscribers", title: "Subscribers", icon: Users },
       { key: "email", title: "Email", icon: Mail },
+    ],
+  },
+  {
+    label: "Platform",
+    items: [
+      { key: "custom-dashboard", title: "Dashboard Widgets", icon: LayoutDashboard },
+      { key: "alerts", title: "Performance Alerts", icon: Bell },
+      { key: "bulk-ops", title: "Bulk Operations", icon: Layers },
+      { key: "audit", title: "Audit Trail", icon: History },
+      { key: "webhooks", title: "Webhooks", icon: WebhookIcon },
     ],
   },
   {
