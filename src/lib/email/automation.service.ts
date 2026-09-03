@@ -151,7 +151,7 @@ async function executeSteps(steps: AutomationStep[], ctx: StepContext) {
   for (const step of steps) {
     if (step.type === 'WAIT') {
       // Phase 2: no actual delay, just log and continue
-      console.log(`[email] Automation WAIT step (${step.delayMinutes ?? 0}min) — skipping delay in Phase 2`);
+      // Phase 2: no actual delay, just continue
       continue;
     }
 

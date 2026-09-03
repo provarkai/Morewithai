@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getEmailProvider } from '@/lib/email/provider';
 import { buildPasswordResetEmail } from '@/lib/email/templates';
+import { log } from '@/lib/logger';
 import crypto from 'crypto';
 
 // POST /api/auth/reset — Request a password reset
@@ -56,14 +57,9 @@ export async function POST(req: NextRequest) {
         from: process.env.EMAIL_FROM || 'noreply@morewithai.online',
         previewText: 'Reset your MoreWithAI password',
       });
-      console.log(`[auth] Password reset email sent to ${user.email}`);
+      log.info(`Password reset email sent to ${user.email}`);
     } catch (emailErr) {
-      console.error('[auth] Failed to send reset email:', emailErr);
-      // In development, log the token as fallback so the user can still reset.
-      // In production, this must never be logged — the user should use email delivery.
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[auth] Dev fallback — reset URL: ${resetUrl}`);
-      }
+      log.error('Failed to send reset email:', emailErr);
     }
 
     return NextResponse.json({

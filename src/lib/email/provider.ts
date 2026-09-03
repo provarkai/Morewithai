@@ -27,14 +27,13 @@ class LogProvider implements EmailProvider {
     html: string,
     options?: { from?: string; replyTo?: string; previewText?: string },
   ): Promise<EmailResult> {
-    console.log('─── 📧 EMAIL (LogProvider) ───');
-    console.log(`  To:      ${to}`);
-    console.log(`  From:    ${options?.from ?? '(default)'}`);
-    console.log(`  ReplyTo: ${options?.replyTo ?? '(none)'}`);
-    console.log(`  Subject: ${subject}`);
-    console.log(`  Preview: ${options?.previewText ?? '(none)'}`);
-    console.log(`  HTML:    ${html.length > 200 ? html.slice(0, 200) + '...' : html}`);
-    console.log('─────────────────────────────');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('─── 📧 EMAIL (LogProvider) ───');
+      console.log(`  To:      ${to}`);
+      console.log(`  From:    ${options?.from ?? '(default)'}`);
+      console.log(`  Subject: ${subject}`);
+      console.log('─────────────────────────────');
+    }
 
     return {
       success: true,
