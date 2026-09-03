@@ -625,3 +625,24 @@ export function getCollaborationSession(articleId: string) { return fetchAPI<any
 export function getCollabConfig(articleId: string) { return fetchAPI<any>('/api/collaboration?articleId=' + articleId + '&action=config'); }
 export function joinCollabSession(data: { articleId: string; userId: string; userName: string }) { return fetchAPI<any>('/api/collaboration', { method: 'POST', body: JSON.stringify({ action: 'join', ...data }) }); }
 export function leaveCollabSession(data: { articleId: string; userId: string }) { return fetchAPI<any>('/api/collaboration', { method: 'POST', body: JSON.stringify({ action: 'leave', ...data }) }); }
+
+// ─── Tier 2: Internal Linking ───────────────────────────────
+export function getInternalLinkAnalysis(siteId: string, articleId: string) { return fetchAPI<any>('/api/ai/internal-links?' + new URLSearchParams({ siteId, articleId }).toString()); }
+export function applyInternalLink(data: { articleId: string; targetArticleId: string; siteId: string }) { return fetchAPI<any>('/api/ai/internal-links', { method: 'POST', body: JSON.stringify(data) }); }
+
+// ─── Tier 2: Content Brief ──────────────────────────────────
+export function generateContentBrief(data: { topic: string; siteId: string; targetAudience?: string; brandVoice?: string; niche?: string }) { return fetchAPI<any>('/api/ai/content-brief', { method: 'POST', body: JSON.stringify(data) }); }
+export function generateBriefForArticle(siteId: string, articleId: string) { return fetchAPI<any>('/api/ai/content-brief?siteId=' + siteId + '&articleId=' + articleId); }
+
+// ─── Tier 2: Translation ────────────────────────────────────
+export function getSupportedLanguages() { return fetchAPI<any[]>('/api/ai/translate?action=languages'); }
+export function translateArticle(data: { articleId: string; siteId: string; targetLanguage: string }) { return fetchAPI<any>('/api/ai/translate', { method: 'POST', body: JSON.stringify(data) }); }
+export function batchTranslateArticle(data: { articleId: string; siteId: string; targetLanguages: string[] }) { return fetchAPI<any>('/api/ai/translate', { method: 'POST', body: JSON.stringify({ action: 'batch', ...data }) }); }
+
+// ─── Tier 2: Voice to Content ───────────────────────────────
+export function voiceTranscribe(data: { audioData?: string; audioUrl?: string; siteId: string }) { return fetchAPI<any>('/api/ai/voice-to-content', { method: 'POST', body: JSON.stringify({ action: 'transcribe', ...data }) }); }
+export function voiceToArticle(data: { transcriptionText: string; siteId: string; targetWordCount?: number; tone?: string }) { return fetchAPI<any>('/api/ai/voice-to-content', { method: 'POST', body: JSON.stringify({ action: 'generate', ...data }) }); }
+
+// ─── Tier 2: Visual Content ─────────────────────────────────
+export function generateVisualContent(data: { siteId: string; type?: string; title: string; description?: string; style?: string; articleId?: string }) { return fetchAPI<any>('/api/ai/visual-content', { method: 'POST', body: JSON.stringify(data) }); }
+export function getVisualTemplates(type?: string) { return fetchAPI<any[]>('/api/ai/visual-content' + (type ? `?type=${type}` : '')); }

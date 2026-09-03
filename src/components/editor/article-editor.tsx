@@ -12,6 +12,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";im
   Clock,
   FlaskConical,
   Users,
+  FileText,
+  Globe,
+  Mic,
+  ImageIcon,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -42,6 +46,11 @@ import { SmartSchedulerPanel } from "./smart-scheduler-panel";
 import { HeadlineABPanel } from "./headline-ab-panel";
 import { EngagementPanel } from "./engagement-panel";
 import { CollaborationPanel } from "./collaboration-panel";
+import { InternalLinksPanel } from "./internal-links-panel";
+import { ContentBriefPanel } from "./content-brief-panel";
+import { TranslationPanel } from "./translation-panel";
+import { VoiceToContentPanel } from "./voice-to-content-panel";
+import { VisualContentPanel } from "./visual-content-panel";
 import { ArticleMonetizationPanel } from "./article-monetization-panel";
 import { getArticles, updateArticle, deleteArticle, publishArticle, scheduleArticle } from "@/lib/api";
 import type { Article } from "@/lib/api";
@@ -300,6 +309,21 @@ export function ArticleEditor({ articleId, siteId, onBack, onNavigate, hasPrev =
               <TabsTrigger value="collab" className="gap-1 text-xs data-[state=active]:border-b-2 data-[state=active]:border-indigo-500 data-[state=active]:shadow-none rounded-none px-3 py-2.5">
                 <Users className="size-3" /> Collab
               </TabsTrigger>
+              <TabsTrigger value="brief" className="gap-1 text-xs data-[state=active]:border-b-2 data-[state=active]:border-amber-500 data-[state=active]:shadow-none rounded-none px-3 py-2.5">
+                <FileText className="size-3" /> Brief
+              </TabsTrigger>
+              <TabsTrigger value="intlinks" className="gap-1 text-xs data-[state=active]:border-b-2 data-[state=active]:border-cyan-500 data-[state=active]:shadow-none rounded-none px-3 py-2.5">
+                <Link2 className="size-3" /> Links
+              </TabsTrigger>
+              <TabsTrigger value="translate" className="gap-1 text-xs data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:shadow-none rounded-none px-3 py-2.5">
+                <Globe className="size-3" /> Lang
+              </TabsTrigger>
+              <TabsTrigger value="voice" className="gap-1 text-xs data-[state=active]:border-b-2 data-[state=active]:border-rose-500 data-[state=active]:shadow-none rounded-none px-3 py-2.5">
+                <Mic className="size-3" /> Voice
+              </TabsTrigger>
+              <TabsTrigger value="visual" className="gap-1 text-xs data-[state=active]:border-b-2 data-[state=active]:border-emerald-500 data-[state=active]:shadow-none rounded-none px-3 py-2.5">
+                <ImageIcon className="size-3" /> Visual
+              </TabsTrigger>
               <TabsTrigger value="publish" className="gap-1 text-xs data-[state=active]:border-b-2 data-[state=active]:border-violet-500 data-[state=active]:shadow-none rounded-none px-3 py-2.5">
                 <Send className="size-3" /> Publish
               </TabsTrigger>
@@ -377,6 +401,21 @@ export function ArticleEditor({ articleId, siteId, onBack, onNavigate, hasPrev =
               </TabsContent>
               <TabsContent value="collab" className="m-0">
                 <CollaborationPanel articleId={articleId} siteId={siteId} />
+              </TabsContent>
+              <TabsContent value="brief" className="m-0">
+                <ContentBriefPanel articleId={articleId} siteId={siteId} />
+              </TabsContent>
+              <TabsContent value="intlinks" className="m-0">
+                <InternalLinksPanel articleId={articleId} siteId={siteId} />
+              </TabsContent>
+              <TabsContent value="translate" className="m-0">
+                <TranslationPanel articleId={articleId} siteId={siteId} />
+              </TabsContent>
+              <TabsContent value="voice" className="m-0">
+                <VoiceToContentPanel siteId={siteId} />
+              </TabsContent>
+              <TabsContent value="visual" className="m-0">
+                <VisualContentPanel articleId={articleId} siteId={siteId} articleTitle={editTitle} />
               </TabsContent>
               <TabsContent value="monetization" className="m-0">
                 <ArticleMonetizationPanel articleId={articleId} siteId={siteId} />

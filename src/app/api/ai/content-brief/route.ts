@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth/guards';
-import { analyzeInternalLinks, applyLinkSuggestion } from '@/lib/ai/internal-linking.service';
+import { generateContentBrief, generateBriefFromArticle } from '@/lib/ai/content-brief.service';
 
 export async function GET(req: NextRequest) {
   try {
     await requirePermission('ai.analyze');
+    const topic = req.nextUrl.searchParams.get('topic');
     const siteId = req.nextUrl.searchParams.get('siteId');
     const articleId = req.nextUrl.searchParams.get('articleId');
-    if (!siteId || !articleId) {
-      return NextResponse.json({ error: 'siteId and articleId required' }, { status: 400 });
+
+    if (articleId && siteId) {
+      const brief = await generateBriefFromArticle(articleId, siteId);
+      return NextResponse.json(brief);
     }
-    const analysis = await analyzeInternalLinks(articleId, siteId);
-    return NextResponse.json(analysis);
+
+    return NextResponse.json({ message: 'POST with topic, or GET with articleId+siteId' });
   } catch (error: unknown) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed' }, { status: 500 });
   }
@@ -21,12 +24,12 @@ export async function POST(req: NextRequest) {
   try {
     await requirePermission('articles.edit');
     const body = await req.json();
-    const { articleId, targetArticleId, siteId } = body;
-    if (!articleId || !targetArticleId || !siteId) {
-      return NextResponse.json({ error: 'articleId, targetArticleId, siteId required' }, { status: 400 });
+    const { topic, siteId, targetAudience, brandVoice, niche } = body;
+    if (!topic || !siteId) {
+      return NextResponse.json({ error: 'topic and siteId required' }, { status: 400 });
     }
-    const result = await applyLinkSuggestion(articleId, targetArticleId, siteId);
-    return NextResponse.json(result);
+    const brief = await generateContentBrief(topic, siteId, { targetAudience, brandVoice, niche });
+    return NextResponse.json(brief);
   } catch (error: unknown) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed' }, { status: 500 });
   }
