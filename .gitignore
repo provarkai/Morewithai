@@ -30,29 +30,48 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
 .env*
 
 # vercel
 .vercel
 
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# editor / tool artifacts
 local-*
 .claude
 .z-ai-config
+.cursor
+
+# logs
 *.log
 dev.log
 dev.out.log
-test
-prompt
-
 server.log
-# Skills directory
-/skills/
 
-# Database files
+# database files
 db/
 prisma/db/
+
+# raw agent/tool output (never commit)
+tool-results/
+upload/
+download/
+
+# planning docs (not part of app)
+worklog.md
+*.docx
+Docs
+
+# empty scaffold dirs
+examples/
+mini-services/
+scripts/
+
+# misc
+prompt
+test
+/skills/
