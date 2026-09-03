@@ -1,0 +1,1492 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── EXISTING MODELS (PRESERVED) ─────────────────────────────
+
+model Site {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  domain      String?
+  isActive    Boolean  @default(true)
+  theme       String   @default("default")
+
+  // Phase 3 — Multi-Site SaaS fields
+  subdomain       String?
+  niche           String?
+  brandVoice      String?
+  targetAudience  String?
+  defaultAuthorId String?
+  defaultCategoryId String?
+  contentRules    String?
+  monetizationSettings String?
+  seoSettings     String?
+  analyticsSettings String?
+  autonomyLevel   String   @default("MANUAL")
+  healthScore     Int?
+  healthScoreAt   DateTime?
+  organizationId  String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  feeds       RssFeed[]
+  articles    Article[]
+  settings    Setting[]
+  logs        AutomationLog[]
+  authors     Author[]
+  categories  Category[]
+  tags        Tag[]
+  aiJobs      AiJob[]
+  userAccess  UserSite[]
+
+  // Phase 2 — Monetization & Growth relations
+  subscribers            Subscriber[]
+  leads                  Lead[]
+  leadMagnets            LeadMagnet[]
+  emailCampaigns         EmailCampaign[]
+  emailEvents            EmailEvent[]
+  emailAutomations       EmailAutomation[]
+  ctas                   CallToAction[]
+  ctaExperiments         CtaExperiment[]
+  affiliatePrograms      AffiliateProgram[]
+  affiliateOffers        AffiliateOffer[]
+  affiliateClicks        AffiliateClick[]
+  products               Product[]
+  productPurchases       ProductPurchase[]
+  adPlacements           AdPlacement[]
+  adEvents               AdEvent[]
+  revenueEvents          RevenueEvent[]
+  revenueAdjustments     RevenueAdjustment[]
+  trafficMetrics         TrafficMetric[]
+  searchMetrics          SearchMetric[]
+  contentOpportunities   ContentOpportunity[]
+  growthRecommendations  GrowthRecommendation[]
+  conversionEvents       ConversionEvent[]
+  topicClusters          TopicCluster[]
+  socialPosts            SocialPost[]
+  socialTemplates        SocialTemplate[]
+  automationRules        AutomationRule[]
+  calendarEvents         ContentCalendarEvent[]
+  media                  Media[]
+  landingPages           LandingPage[]
+
+  // Phase 3 — Multi-Site SaaS relations
+  organization    Organization?  @relation(fields: [organizationId], references: [id])
+  defaultAuthor   Author?  @relation("SiteDefaultAuthor", fields: [defaultAuthorId], references: [id])
+  contentJobs     ContentJob[]
+  approvalTasks   ApprovalTask[]
+  scheduledTasks  ScheduledTask[]
+  webhooks        Webhook[]
+  featureFlags    SiteFeatureFlag[]
+  auditLogs       AuditLog[]
+  apiKeys         ApiKey[]
+  costEvents      CostEvent[]
+}
+
+model RssFeed {
+  id          String   @id @default(cuid())
+  name        String
+  url         String
+  category    String   @default("AI")
+  isActive    Boolean  @default(true)
+  lastFetched DateTime?
+  fetchCount  Int      @default(0)
+  siteId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  site        Site     @relation(fields: [siteId], references: [id])
+  articles    Article[]
+
+  @@unique([url, siteId])
+}
+
+model Article {
+  id               String   @id @default(cuid())
+  
+  // PRESERVED FIELDS — do not remove, existing data depends on these
+  title            String
+  originalTitle     String
+  originalContent  String
+  rewrittenTitle    String?
+  rewrittenContent String?
+  sourceUrl        String
+  sourceFeedId     String?
+  thumbnailUrl      String?
+  errorMessage      String?
+  wordpressPostId   Int?
+  wordpressUrl      String?
+  seoTitle         String?
+  seoDescription   String?
+  seoKeywords      String?
+  seoSchema        String?
+  adsenseEnabled   Boolean  @default(true)
+  fetchedAt        DateTime @default(now())
+  rewrittenAt       DateTime?
+  publishedAt       DateTime?
+
+  // NEW FIELDS
+  slug             String?
+  excerpt          String?
+  authorId         String?
+  categoryId       String?
+  primaryKeyword   String?
+  secondaryKeywords String?
+  searchIntent     String?
+  readingTime      Int?
+  wordCount        Int?
+  seoScore         Int?
+  qualityScore     Int?
+  lastReviewedAt   DateTime?
+  nextReviewAt     DateTime?
+  publishedVersionId String?
+
+  // Status — now validated by workflow (see src/lib/articles/status.ts)
+  status           String   @default("fetched")
+  scheduledAt       DateTime?
+
+  siteId           String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // RELATIONS
+  feed              RssFeed?           @relation(fields: [sourceFeedId], references: [id])
+  site              Site               @relation(fields: [siteId], references: [id])
+  author            Author?            @relation(fields: [authorId], references: [id])
+  category          Category?          @relation(fields: [categoryId], references: [id])
+  versions          ArticleVersion[]
+  sources           ArticleSource[]
+  seoAnalysis       SeoAnalysis?
+  contentScore      ContentScore?
+  linkRecommendations InternalLinkRecommendation[]  @relation("LinkSource")
+  linkTargets         InternalLinkRecommendation[]  @relation("LinkTarget")
+  refreshRecords    ContentRefresh[]
+  aiJobs            AiJob[]
+  tags              ArticleTag[]
+
+  // Phase 2 — Monetization & Growth relations
+  leads                  Lead[]
+  ctaPlacements          CtaPlacement[]
+  affiliateClicks        AffiliateClick[]
+  productPurchases       ProductPurchase[]
+  adEvents               AdEvent[]
+  revenueEvents          RevenueEvent[]
+  trafficMetrics         TrafficMetric[]
+  searchMetrics          SearchMetric[]
+  contentOpportunities   ContentOpportunity[]
+  growthRecommendations  GrowthRecommendation[]
+  conversionEvents       ConversionEvent[]
+  clusterArticles        ClusterArticle[]
+  targetingCtas          CallToAction[]
+  pillarClusters         TopicCluster[]
+  socialPosts            SocialPost[]
+  calendarEvents         ContentCalendarEvent[]
+  contentJobs           ContentJob[]
+
+  @@unique([sourceUrl, siteId])
+  @@index([siteId])
+  @@index([status])
+  @@index([categoryId])
+  @@index([authorId])
+  @@index([publishedAt])
+  @@index([nextReviewAt])
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String
+  value     String
+  siteId    String
+  updatedAt DateTime @updatedAt
+
+  site      Site     @relation(fields: [siteId], references: [id])
+
+  @@unique([key, siteId])
+}
+
+model AutomationLog {
+  id        String   @id @default(cuid())
+  action    String
+  status    String
+  message   String
+  details   String?
+  siteId    String
+  createdAt DateTime @default(now())
+
+  site      Site     @relation(fields: [siteId], references: [id])
+}
+
+// ─── NEW MODELS — PHASE 1 ─────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String   @default("EDITOR")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions     Session[]
+  siteAccess   UserSite[]
+  passwordResets PasswordReset[]
+  authorProfiles Author[]
+
+  // Phase 3 — Organization relations
+  ownedOrgs       Organization[]  @relation("OrganizationOwner")
+  orgMemberships  OrganizationMember[] @relation("OrgMember")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PasswordReset {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+}
+
+
+model UserSite {
+  id     String @id @default(cuid())
+  userId String
+  siteId String
+  role   String @default("EDITOR")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site   Site   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, siteId])
+}
+
+model Author {
+  id         String   @id @default(cuid())
+  siteId     String
+  userId     String?
+  name       String
+  slug       String
+  bio        String?
+  avatarUrl  String?
+  website    String?
+  socialLinks String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  site       Site     @relation(fields: [siteId], references: [id])
+  user       User?    @relation(fields: [userId], references: [id])
+  articles   Article[]
+  products   Product[]
+  defaultForSites Site[] @relation("SiteDefaultAuthor")
+
+  @@unique([slug, siteId])
+  @@index([siteId])
+}
+
+model Category {
+  id             String   @id @default(cuid())
+  siteId         String
+  name           String
+  slug           String
+  description    String?
+  seoTitle       String?
+  seoDescription String?
+  imageUrl       String?
+  parentId       String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  site           Site     @relation(fields: [siteId], references: [id])
+  parent         Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children       Category[] @relation("CategoryHierarchy")
+  articles       Article[]
+
+  @@unique([slug, siteId])
+  @@index([siteId])
+}
+
+model Tag {
+  id          String   @id @default(cuid())
+  siteId      String
+  name        String
+  slug        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  site        Site        @relation(fields: [siteId], references: [id])
+  articles    ArticleTag[]
+
+  @@unique([slug, siteId])
+  @@index([siteId])
+}
+
+model ArticleTag {
+  articleId String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+}
+
+model ArticleVersion {
+  id             String   @id @default(cuid())
+  articleId      String
+  versionNumber  Int
+  title          String
+  excerpt        String?
+  content        String
+  createdById    String?
+  changeReason   String?
+  createdAt      DateTime @default(now())
+
+  article        Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+}
+
+model ArticleSource {
+  id           String   @id @default(cuid())
+  articleId    String
+  url          String?
+  title        String?
+  publisher    String?
+  publishedAt  String?
+  sourceType   String   @default("RSS")
+  excerpt      String?
+  createdAt    DateTime @default(now())
+
+  article      Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId])
+}
+
+model SeoAnalysis {
+  id                String   @id @default(cuid())
+  articleId         String   @unique
+  primaryKeyword    String?
+  secondaryKeywords String?
+  searchIntent      String?
+  titleScore        Int      @default(0)
+  metaScore         Int      @default(0)
+  keywordScore      Int      @default(0)
+  structureScore    Int      @default(0)
+  linkScore         Int      @default(0)
+  schemaScore       Int      @default(0)
+  readabilityScore  Int      @default(0)
+  overallScore      Int      @default(0)
+  recommendations   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  article           Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+}
+
+model ContentScore {
+  id                        String   @id @default(cuid())
+  articleId                 String   @unique
+  overallScore               Int      @default(0)
+  originalityScore           Int      @default(0)
+  readabilityScore           Int      @default(0)
+  searchIntentScore          Int      @default(0)
+  depthScore                 Int      @default(0)
+  authorityScore             Int      @default(0)
+  factualScore               Int      @default(0)
+  internalLinkScore          Int      @default(0)
+  monetizationReadinessScore Int      @default(0)
+  recommendations            String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  article                    Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+}
+
+model InternalLinkRecommendation {
+  id              String   @id @default(cuid())
+  articleId       String
+  targetArticleId String
+  relevanceScore  Int      @default(0)
+  suggestedAnchor String?
+  reason          String?
+  status          String   @default("SUGGESTED")
+  createdAt       DateTime @default(now())
+
+  article         Article  @relation("LinkSource", fields: [articleId], references: [id], onDelete: Cascade)
+  targetArticle   Article  @relation("LinkTarget", fields: [targetArticleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId])
+}
+
+model ContentRefresh {
+  id           String   @id @default(cuid())
+  articleId    String
+  reason       String   @default("AGE")
+  status       String   @default("PENDING")
+  triggeredAt  DateTime @default(now())
+  scheduledFor DateTime?
+  completedAt  DateTime?
+  notes        String?
+
+  article      Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([scheduledFor])
+}
+
+model AiJob {
+  id             String   @id @default(cuid())
+  siteId         String
+  articleId      String?
+  type           String
+  status         String   @default("QUEUED")
+  model          String?
+  inputTokens    Int?
+  outputTokens   Int?
+  estimatedCost  Float?
+  error          String?
+  retryCount     Int      @default(0)
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime @default(now())
+
+  site           Site     @relation(fields: [siteId], references: [id])
+  article        Article? @relation(fields: [articleId], references: [id])
+
+  @@index([status])
+  @@index([type])
+}
+
+// ─── PHASE 2 — MONETIZATION & GROWTH ENGINE ─────────────────
+
+model Subscriber {
+  id             String    @id @default(cuid())
+  siteId         String
+  email          String
+  firstName      String?
+  status         String    @default("SUBSCRIBED")
+  source         String    @default("ARTICLE")
+  consentAt      DateTime  @default(now())
+  unsubscribedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  site           Site      @relation(fields: [siteId], references: [id])
+  leads          Lead[]
+  emailEvents    EmailEvent[]
+  affiliateClicks AffiliateClick[]
+  productPurchases ProductPurchase[]
+  conversionEvents ConversionEvent[]
+
+  @@unique([email, siteId])
+  @@index([siteId])
+  @@index([status])
+}
+
+model Lead {
+  id             String   @id @default(cuid())
+  siteId         String
+  subscriberId   String?
+  articleId      String?
+  leadMagnetId   String?
+  email          String
+  firstName      String?
+  status         String   @default("CAPTURED")
+  source         String   @default("ARTICLE")
+  metadata       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  site           Site         @relation(fields: [siteId], references: [id])
+  subscriber     Subscriber?   @relation(fields: [subscriberId], references: [id])
+  article        Article?      @relation(fields: [articleId], references: [id])
+  leadMagnet     LeadMagnet?   @relation(fields: [leadMagnetId], references: [id])
+
+  @@index([siteId])
+  @@index([articleId])
+  @@index([email])
+}
+
+model LeadMagnet {
+  id               String   @id @default(cuid())
+  siteId           String
+  name             String
+  title            String
+  description      String
+  fileType         String?
+  fileUrl          String?
+  ctaText          String
+  ctaDescription   String
+  thankYouMessage  String
+  thankYouUrl      String?
+  emailSequenceId  String?
+  status           String   @default("ACTIVE")
+  deliveryCount    Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  site             Site   @relation(fields: [siteId], references: [id])
+  leads            Lead[]
+  ctas             CallToAction[]
+  landingPages     LandingPage[]
+
+  @@index([siteId])
+  @@index([status])
+}
+
+model EmailCampaign {
+  id               String    @id @default(cuid())
+  siteId           String
+  name             String
+  type             String    @default("NEWSLETTER")
+  subject          String
+  previewText      String?
+  content          String
+  status           String    @default("DRAFT")
+  scheduledAt      DateTime?
+  sentAt           DateTime?
+  subscriberCount  Int       @default(0)
+  openCount        Int       @default(0)
+  clickCount       Int       @default(0)
+  bounceCount      Int       @default(0)
+  unsubscribeCount Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  site             Site          @relation(fields: [siteId], references: [id])
+  events           EmailEvent[]
+
+  @@index([siteId])
+  @@index([status])
+  @@index([type])
+}
+
+model EmailEvent {
+  id           String   @id @default(cuid())
+  siteId       String
+  campaignId   String?
+  subscriberId String
+  type         String   @default("SENT")
+  metadata     String?
+  createdAt    DateTime @default(now())
+
+  site         Site         @relation(fields: [siteId], references: [id])
+  campaign     EmailCampaign? @relation(fields: [campaignId], references: [id])
+  subscriber   Subscriber    @relation(fields: [subscriberId], references: [id])
+
+  @@index([siteId])
+  @@index([campaignId])
+  @@index([subscriberId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model EmailAutomation {
+  id          String   @id @default(cuid())
+  siteId      String
+  name        String
+  triggerType String   @default("SUBSCRIBED")
+  steps       String
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  site        Site     @relation(fields: [siteId], references: [id])
+
+  @@index([siteId])
+  @@index([status])
+}
+
+model CallToAction {
+  id                 String   @id @default(cuid())
+  siteId             String
+  name               String
+  type               String   @default("NEWSLETTER")
+  headline           String
+  description        String?
+  buttonText         String
+  buttonUrl          String?
+  targetPlacement    String   @default("AFTER_ARTICLE")
+  targetArticleId    String?
+  targetCategoryId   String?
+  targetTagId        String?
+  leadMagnetId       String?
+  affiliateOfferId   String?
+  productId          String?
+  isActive           Boolean  @default(true)
+  impressionCount    Int      @default(0)
+  clickCount         Int      @default(0)
+  conversionCount    Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  site               Site            @relation(fields: [siteId], references: [id])
+  targetArticle      Article?        @relation(fields: [targetArticleId], references: [id])
+  leadMagnet         LeadMagnet?     @relation(fields: [leadMagnetId], references: [id])
+  affiliateOffer     AffiliateOffer? @relation(fields: [affiliateOfferId], references: [id])
+  product            Product?        @relation(fields: [productId], references: [id])
+  placements         CtaPlacement[]
+  experiments        CtaExperiment[]
+
+  @@index([siteId])
+  @@index([type])
+  @@index([targetPlacement])
+  @@index([isActive])
+}
+
+model CtaPlacement {
+  id            String   @id @default(cuid())
+  ctaId         String
+  articleId     String?
+  placement     String   @default("AFTER_ARTICLE")
+  position      Int?
+  isActive      Boolean  @default(true)
+  frequencyCap  Int?
+  createdAt     DateTime @default(now())
+
+  cta           CallToAction @relation(fields: [ctaId], references: [id])
+  article       Article?     @relation(fields: [articleId], references: [id])
+
+  @@index([ctaId])
+  @@index([articleId])
+  @@index([placement])
+}
+
+model CtaExperiment {
+  id                String    @id @default(cuid())
+  siteId            String
+  name              String
+  ctaId             String
+  status            String    @default("RUNNING")
+  startDate         DateTime
+  endDate           DateTime?
+  totalImpressions  Int       @default(0)
+  totalClicks       Int       @default(0)
+  totalConversions  Int       @default(0)
+  winnerVariantId   String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  site              Site         @relation(fields: [siteId], references: [id])
+  cta               CallToAction  @relation(fields: [ctaId], references: [id])
+  variants          CtaVariant[]
+
+  @@index([siteId])
+  @@index([ctaId])
+  @@index([status])
+}
+
+model CtaVariant {
+  id              String   @id @default(cuid())
+  experimentId    String
+  name            String
+  headline        String
+  description     String?
+  buttonText      String
+  buttonUrl       String
+  isControl       Boolean  @default(false)
+  impressionCount Int      @default(0)
+  clickCount      Int      @default(0)
+  conversionCount Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  experiment      CtaExperiment @relation(fields: [experimentId], references: [id])
+
+  @@unique([experimentId, name])
+  @@index([experimentId])
+}
+
+model AffiliateProgram {
+  id              String   @id @default(cuid())
+  siteId          String
+  name            String
+  network         String?
+  website         String?
+  commissionType  String?
+  commissionValue Float?
+  cookieDuration  Int?
+  terms           String?
+  status          String   @default("ACTIVE")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  site            Site            @relation(fields: [siteId], references: [id])
+  offers          AffiliateOffer[]
+
+  @@index([siteId])
+  @@index([status])
+}
+
+model AffiliateOffer {
+  id               String   @id @default(cuid())
+  siteId           String
+  programId        String
+  name             String
+  description      String?
+  destinationUrl   String
+  affiliateUrl     String
+  category         String?
+  commission       Float?
+  priority         Int      @default(0)
+  status           String   @default("ACTIVE")
+  clickCount       Int      @default(0)
+  conversionCount  Int      @default(0)
+  revenueGenerated Float    @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  site             Site             @relation(fields: [siteId], references: [id])
+  program          AffiliateProgram @relation(fields: [programId], references: [id])
+  clicks           AffiliateClick[]
+  ctas             CallToAction[]
+
+  @@index([siteId])
+  @@index([programId])
+  @@index([status])
+  @@index([category])
+}
+
+model AffiliateClick {
+  id               String   @id @default(cuid())
+  siteId           String
+  articleId        String?
+  offerId          String
+  subscriberId     String?
+  sessionIdentifier String?
+  ip               String?
+  userAgent        String?
+  referrer         String?
+  status           String   @default("CLICKED")
+  revenue          Float    @default(0)
+  createdAt        DateTime @default(now())
+
+  site             Site         @relation(fields: [siteId], references: [id])
+  article          Article?     @relation(fields: [articleId], references: [id])
+  offer            AffiliateOffer @relation(fields: [offerId], references: [id])
+  subscriber       Subscriber?  @relation(fields: [subscriberId], references: [id])
+
+  @@index([siteId])
+  @@index([offerId])
+  @@index([articleId])
+  @@index([createdAt])
+}
+
+model Product {
+  id               String   @id @default(cuid())
+  siteId           String
+  authorId         String?
+  name             String
+  slug             String
+  description      String
+  price            Float
+  currency         String   @default("NGN")
+  productType      String   @default("EBOOK")
+  checkoutUrl      String?
+  imageUrl         String?
+  status           String   @default("DRAFT")
+  purchaseCount    Int      @default(0)
+  revenueGenerated Float    @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  site             Site      @relation(fields: [siteId], references: [id])
+  author           Author?   @relation(fields: [authorId], references: [id])
+  purchases        ProductPurchase[]
+  ctas             CallToAction[]
+  landingPages     LandingPage[]
+
+  @@unique([slug, siteId])
+  @@index([siteId])
+  @@index([productType])
+  @@index([status])
+}
+
+model ProductPurchase {
+  id             String   @id @default(cuid())
+  siteId         String
+  productId      String
+  articleId      String?
+  subscriberId   String?
+  email          String
+  amount         Float
+  currency       String   @default("NGN")
+  status         String   @default("PENDING")
+  transactionId  String?
+  provider       String?
+  metadata       String?
+  createdAt      DateTime @default(now())
+
+  site           Site        @relation(fields: [siteId], references: [id])
+  product        Product     @relation(fields: [productId], references: [id])
+  article        Article?    @relation(fields: [articleId], references: [id])
+  subscriber     Subscriber? @relation(fields: [subscriberId], references: [id])
+
+  @@index([siteId])
+  @@index([productId])
+  @@index([articleId])
+  @@index([status])
+}
+
+model AdPlacement {
+  id         String   @id @default(cuid())
+  siteId     String
+  name       String
+  placement  String   @default("IN_ARTICLE")
+  provider   String?
+  adUnitId   String?
+  enabled    Boolean  @default(true)
+  articleId  String?
+  categoryId String?
+  priority   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  site       Site      @relation(fields: [siteId], references: [id])
+  events     AdEvent[]
+
+  @@index([siteId])
+  @@index([placement])
+  @@index([enabled])
+}
+
+model AdEvent {
+  id               String   @id @default(cuid())
+  siteId           String
+  placementId      String
+  articleId        String?
+  type             String   @default("IMPRESSION")
+  metadata         String?
+  estimatedRevenue Float    @default(0)
+  createdAt        DateTime @default(now())
+
+  site             Site        @relation(fields: [siteId], references: [id])
+  placement        AdPlacement @relation(fields: [placementId], references: [id])
+  article          Article?    @relation(fields: [articleId], references: [id])
+
+  @@index([siteId])
+  @@index([placementId])
+  @@index([articleId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model RevenueEvent {
+  id         String   @id @default(cuid())
+  siteId     String
+  articleId  String?
+  sourceType String
+  sourceId   String?
+  amount     Float
+  currency   String   @default("NGN")
+  status     String   @default("CONFIRMED")
+  metadata   String?
+  createdAt  DateTime @default(now())
+
+  site       Site               @relation(fields: [siteId], references: [id])
+  article    Article?           @relation(fields: [articleId], references: [id])
+  adjustment RevenueAdjustment[]
+
+  @@index([siteId])
+  @@index([articleId])
+  @@index([sourceType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model RevenueAdjustment {
+  id             String   @id @default(cuid())
+  siteId         String
+  relatedEventId String
+  amount         Float
+  reason         String
+  createdBy      String?
+  createdAt      DateTime @default(now())
+
+  site           Site          @relation(fields: [siteId], references: [id])
+  relatedEvent   RevenueEvent  @relation(fields: [relatedEventId], references: [id])
+
+  @@index([siteId])
+  @@index([relatedEventId])
+}
+
+model TrafficMetric {
+  id           String   @id @default(cuid())
+  siteId       String
+  articleId    String?
+  date         DateTime
+  pageViews    Int      @default(0)
+  sessions     Int      @default(0)
+  users        Int      @default(0)
+  trafficSource String?
+  country      String?
+  device       String?
+  createdAt    DateTime @default(now())
+
+  site         Site     @relation(fields: [siteId], references: [id])
+  article      Article? @relation(fields: [articleId], references: [id])
+
+  @@index([siteId])
+  @@index([articleId])
+  @@index([date])
+}
+
+model SearchMetric {
+  id          String   @id @default(cuid())
+  siteId      String
+  articleId   String
+  date        DateTime
+  query       String
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  ctr         Float    @default(0)
+  position    Float    @default(0)
+  createdAt   DateTime @default(now())
+
+  site        Site     @relation(fields: [siteId], references: [id])
+  article     Article  @relation(fields: [articleId], references: [id])
+
+  @@index([siteId])
+  @@index([articleId])
+  @@index([date])
+}
+
+model ContentOpportunity {
+  id              String   @id @default(cuid())
+  siteId          String
+  articleId       String?
+  type            String
+  title           String
+  description     String
+  expectedImpact  String?
+  priority        String   @default("MEDIUM")
+  status          String   @default("OPEN")
+  aiGenerated     Boolean  @default(false)
+  metadata        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  site            Site     @relation(fields: [siteId], references: [id])
+  article         Article? @relation(fields: [articleId], references: [id])
+
+  @@index([siteId])
+  @@index([articleId])
+  @@index([type])
+  @@index([priority])
+  @@index([status])
+}
+
+model GrowthRecommendation {
+  id              String   @id @default(cuid())
+  siteId          String
+  articleId       String?
+  problem         String
+  opportunity     String
+  recommendedAction String
+  expectedImpact  String?
+  priority        String   @default("MEDIUM")
+  status          String   @default("PENDING")
+  aiGenerated     Boolean  @default(false)
+  metadata        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  site            Site     @relation(fields: [siteId], references: [id])
+  article         Article? @relation(fields: [articleId], references: [id])
+
+  @@index([siteId])
+  @@index([articleId])
+  @@index([priority])
+  @@index([status])
+}
+
+model ConversionEvent {
+  id           String   @id @default(cuid())
+  siteId       String
+  articleId    String?
+  subscriberId String?
+  eventType    String   @default("CTA_CLICK")
+  sourceType   String
+  sourceId     String?
+  value        Float    @default(0)
+  metadata     String?
+  createdAt    DateTime @default(now())
+
+  site         Site        @relation(fields: [siteId], references: [id])
+  article      Article?    @relation(fields: [articleId], references: [id])
+  subscriber   Subscriber? @relation(fields: [subscriberId], references: [id])
+
+  @@index([siteId])
+  @@index([articleId])
+  @@index([subscriberId])
+  @@index([eventType])
+  @@index([sourceType])
+  @@index([createdAt])
+}
+
+model TopicCluster {
+  id             String   @id @default(cuid())
+  siteId         String
+  name           String
+  slug           String
+  description    String?
+  pillarArticleId String?
+  status         String   @default("ACTIVE")
+  articleCount   Int      @default(0)
+  totalTraffic   Int      @default(0)
+  avgPosition    Float    @default(0)
+  authorityScore Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  site           Site           @relation(fields: [siteId], references: [id])
+  pillarArticle  Article?       @relation(fields: [pillarArticleId], references: [id])
+  clusterArticles ClusterArticle[]
+
+  @@unique([slug, siteId])
+  @@index([siteId])
+  @@index([status])
+}
+
+model ClusterArticle {
+  id         String   @id @default(cuid())
+  clusterId  String
+  articleId  String
+  role       String   @default("SUPPORTING")
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  cluster    TopicCluster @relation(fields: [clusterId], references: [id])
+  article    Article      @relation(fields: [articleId], references: [id])
+
+  @@unique([clusterId, articleId])
+  @@index([clusterId])
+  @@index([articleId])
+}
+
+model SocialPost {
+  id                String    @id @default(cuid())
+  siteId            String
+  articleId         String?
+  platform          String    @default("X")
+  content           String
+  status            String    @default("DRAFT")
+  publishedAt       DateTime?
+  engagementLikes   Int       @default(0)
+  engagementShares  Int       @default(0)
+  engagementComments Int      @default(0)
+  engagementClicks  Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  site              Site      @relation(fields: [siteId], references: [id])
+  article           Article?  @relation(fields: [articleId], references: [id])
+
+  @@index([siteId])
+  @@index([articleId])
+  @@index([platform])
+  @@index([status])
+}
+
+model SocialTemplate {
+  id         String   @id @default(cuid())
+  siteId     String
+  platform   String   @default("X")
+  name       String
+  template   String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  site       Site     @relation(fields: [siteId], references: [id])
+
+  @@index([siteId])
+  @@index([platform])
+}
+
+model AutomationRule {
+  id              String    @id @default(cuid())
+  siteId          String
+  name            String
+  triggerCondition String
+  action          String
+  isActive        Boolean   @default(true)
+  lastTriggeredAt DateTime?
+  runCount        Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  site            Site      @relation(fields: [siteId], references: [id])
+
+  @@index([siteId])
+  @@index([isActive])
+}
+
+model ContentCalendarEvent {
+  id             String   @id @default(cuid())
+  siteId         String
+  articleId      String?
+  eventType      String   @default("PUBLISH")
+  title          String
+  description    String?
+  scheduledDate  DateTime
+  status         String   @default("PLANNED")
+  priority       String   @default("MEDIUM")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  site           Site     @relation(fields: [siteId], references: [id])
+  article        Article? @relation(fields: [articleId], references: [id])
+
+  @@index([siteId])
+  @@index([scheduledDate])
+  @@index([eventType])
+  @@index([status])
+}
+
+model Media {
+  id        String   @id @default(cuid())
+  siteId    String
+  fileName  String
+  originalName String
+  mimeType  String
+  fileSize  Int
+  url       String
+  alt       String?
+  folder    String   @default("uploads")
+ metadata  String?
+  createdAt DateTime @default(now())
+
+  site      Site     @relation(fields: [siteId], references: [id])
+
+  @@index([siteId])
+  @@index([mimeType])
+  @@index([folder])
+}
+
+model LandingPage {
+  id          String   @id @default(cuid())
+  siteId      String
+  title       String
+  slug        String
+  headline    String
+  subheadline String?
+  content     String
+  ctaText     String?
+  ctaUrl      String?
+  leadMagnetId String?
+  productId   String?
+  status      String   @default("DRAFT")
+ publishedAt  DateTime?
+  viewCount   Int      @default(0)
+  conversionCount Int   @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  site        Site         @relation(fields: [siteId], references: [id])
+  leadMagnet  LeadMagnet?  @relation(fields: [leadMagnetId], references: [id])
+  product     Product?     @relation(fields: [productId], references: [id])
+
+  @@unique([slug, siteId])
+  @@index([siteId])
+  @@index([status])
+}
+
+// ─── PHASE 3 — MULTI-SITE SAAS PLATFORM ─────────────────────
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  ownerId     String
+  planId      String?
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner         User     @relation("OrganizationOwner", fields: [ownerId], references: [id])
+  members       OrganizationMember[]
+  sites         Site[]
+  subscriptions Subscription[]
+  apiKeys       ApiKey[]
+  auditLogs     AuditLog[]
+  usageRecords  UsageRecord[]
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String   @default("EDITOR")
+  joinedAt       DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation("OrgMember", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model Plan {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  description     String?
+  price           Float    @default(0)
+  currency        String   @default("NGN")
+  interval        String   @default("MONTHLY")
+  limits          String
+  features        String?
+  isActive        Boolean  @default(true)
+  stripePriceId   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  subscriptions   Subscription[]
+}
+
+model Subscription {
+  id                  String   @id @default(cuid())
+  organizationId      String
+  planId              String
+  status              String   @default("ACTIVE")
+  currentPeriodStart  DateTime @default(now())
+  currentPeriodEnd    DateTime?
+  provider            String   @default("MANUAL")
+  externalId          String?
+  canceledAt          DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  organization        Organization @relation(fields: [organizationId], references: [id])
+  plan                Plan         @relation(fields: [planId], references: [id])
+}
+
+model UsageRecord {
+  id             String   @id @default(cuid())
+  organizationId String
+  siteId         String?
+  metric         String
+  value          Int      @default(1)
+  periodStart    DateTime
+  periodEnd      DateTime
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+}
+
+model ContentJob {
+  id           String    @id @default(cuid())
+  siteId       String
+  articleId    String?
+  type         String
+  priority     Int       @default(5)
+  status       String    @default("QUEUED")
+  scheduledAt  DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  retryCount   Int       @default(0)
+  maxRetries   Int       @default(3)
+  error        String?
+  input        String?
+  output       String?
+  metadata     String?
+  durationMs   Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  site         Site      @relation(fields: [siteId], references: [id])
+  article      Article?  @relation(fields: [articleId], references: [id])
+
+  @@index([siteId])
+  @@index([status])
+  @@index([type])
+  @@index([priority])
+  @@index([scheduledAt])
+}
+
+model ApprovalTask {
+  id           String   @id @default(cuid())
+  siteId       String
+  type         String
+  title        String
+  description  String?
+  resourceId   String?
+  resourceType String?
+  status       String   @default("PENDING")
+  requestedBy  String?
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  expiresAt    DateTime?
+  metadata     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  site         Site      @relation(fields: [siteId], references: [id])
+}
+
+model ScheduledTask {
+  id           String   @id @default(cuid())
+  siteId       String?
+  name         String
+  taskType     String
+  cronExpr     String?
+  action       String
+  isActive     Boolean   @default(true)
+  lastRunAt    DateTime?
+  lastStatus   String?
+  nextRunAt    DateTime?
+  runCount     Int       @default(0)
+  failCount    Int       @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  site         Site?     @relation(fields: [siteId], references: [id])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  siteId         String?
+  actorId        String?
+  actorEmail     String?
+  action         String
+  resource       String
+  resourceId     String?
+  ipAddress      String?
+  userAgent      String?
+  metadata       String?
+  createdAt      DateTime @default(now())
+
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  site           Site?         @relation(fields: [siteId], references: [id])
+
+  @@index([organizationId])
+  @@index([siteId])
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Webhook {
+  id             String   @id @default(cuid())
+  siteId         String
+  url            String
+  eventTypes     String
+  secret         String?
+  isActive       Boolean  @default(true)
+  lastTriggered  DateTime?
+  successCount   Int      @default(0)
+  failCount      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  site           Site           @relation(fields: [siteId], references: [id])
+  events         WebhookEvent[]
+}
+
+model WebhookEvent {
+  id         String   @id @default(cuid())
+  webhookId  String
+  eventType  String
+  payload    String
+  statusCode Int?
+  response   String?
+  durationMs Int?
+  createdAt  DateTime @default(now())
+
+  webhook    Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model ApiKey {
+  id             String   @id @default(cuid())
+  organizationId String?
+  siteId         String?
+  name           String
+  keyHash        String   @unique
+  keyPrefix      String
+  scopes         String
+  expiresAt      DateTime?
+  lastUsedAt     DateTime?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  site           Site?         @relation(fields: [siteId], references: [id])
+
+  @@index([organizationId])
+  @@index([siteId])
+  @@index([keyPrefix])
+}
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  isGlobal    Boolean  @default(false)
+  enabled     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sites       SiteFeatureFlag[]
+}
+
+model SiteFeatureFlag {
+  id            String   @id @default(cuid())
+  siteId        String
+  featureFlagId String
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  site          Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  featureFlag   FeatureFlag  @relation(fields: [featureFlagId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, featureFlagId])
+}
+
+model CostEvent {
+  id           String   @id @default(cuid())
+  siteId       String
+  category     String
+  amount       Float
+  currency     String   @default("NGN")
+  description  String?
+  provider     String?
+  metadata     String?
+  date         DateTime
+  createdAt    DateTime @default(now())
+
+  site         Site      @relation(fields: [siteId], references: [id])
+
+  @@index([siteId])
+  @@index([category])
+  @@index([date])
+}
