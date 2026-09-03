@@ -59,9 +59,11 @@ export async function POST(req: NextRequest) {
       console.log(`[auth] Password reset email sent to ${user.email}`);
     } catch (emailErr) {
       console.error('[auth] Failed to send reset email:', emailErr);
-      // Log token as fallback so the user can still reset
-      console.log(`[auth] Password reset fallback — token for ${user.email}: ${token}`);
-      console.log(`[auth] Reset URL: ${resetUrl}`);
+      // In development, log the token as fallback so the user can still reset.
+      // In production, this must never be logged — the user should use email delivery.
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[auth] Dev fallback — reset URL: ${resetUrl}`);
+      }
     }
 
     return NextResponse.json({

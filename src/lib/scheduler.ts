@@ -4,13 +4,14 @@ import { publishArticle } from '@/lib/services/publish.service';
 import { fetchAllFeeds } from '@/lib/services/fetch.service';
 import { runScheduledRefreshCheck } from '@/lib/content-refresh/service';
 import { runDailyGrowthReview } from '@/lib/growth/automation.service';
+import { log } from '@/lib/logger';
 
 let scheduled = false;
 
 export function startScheduler() {
   if (scheduled) return;
   scheduled = true;
-  console.log('[Scheduler] Starting background scheduler...');
+  log.info('[Scheduler] Starting background scheduler...');
 
   // Every 5 minutes: publish due scheduled articles across all sites
   cron.schedule('*/5 * * * *', async () => {
@@ -52,7 +53,7 @@ export function startScheduler() {
         });
       }
 
-      console.log(`[Scheduler] Done: ${success} published, ${failed} failed`);
+      log.info(`[Scheduler] Done: ${success} published, ${failed} failed`);
     } catch (error) {
       // Logged via automation log, not console
     }
@@ -62,7 +63,7 @@ export function startScheduler() {
   cron.schedule('0 3 * * *', async () => {
     try {
       const results = await runScheduledRefreshCheck();
-      console.log(`[Scheduler] Refresh check: ${results.succeeded} refreshed, ${results.skipped} skipped, ${results.failed} failed`);
+      log.info(`[Scheduler] Refresh check: ${results.succeeded} refreshed, ${results.skipped} skipped, ${results.failed} failed`);
     } catch {
       // Non-blocking — will retry next day
     }
@@ -72,7 +73,7 @@ export function startScheduler() {
   cron.schedule('0 4 * * *', async () => {
     try {
       const results = await runDailyGrowthReview();
-      console.log(`[Scheduler] Growth review: ${results.length} sites processed`);
+      log.info(`[Scheduler] Growth review: ${results.length} sites processed`);
     } catch {
       // Non-blocking — will retry next day
     }
@@ -107,12 +108,12 @@ export function startScheduler() {
       }
 
       if (totalFetched > 0 || errors > 0) {
-        console.log(`[Scheduler] Auto-fetch: ${totalFetched} articles, ${errors} errors across ${sites.length} sites`);
+        log.info(`[Scheduler] Auto-fetch: ${totalFetched} articles, ${errors} errors across ${sites.length} sites`);
       }
     } catch {
       // Non-blocking — will retry on next cycle
     }
   });
 
-  console.log('[Scheduler] Background scheduler active (publish: 5min, auto-fetch: 6hr, refresh: daily 3AM, growth: daily 4AM)');
+  log.info('[Scheduler] Background scheduler active (publish: 5min, auto-fetch: 6hr, refresh: daily 3AM, growth: daily 4AM)');
 }

@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -89,6 +89,29 @@ model Site {
   auditLogs       AuditLog[]
   apiKeys         ApiKey[]
   costEvents      CostEvent[]
+  usageRecords    UsageRecord[]
+
+  // Phase 3 — Command centre, events, money engine
+  dashboardSnapshots       DashboardSnapshot[]
+  businessHealthScores     BusinessHealthScore[]
+  nextBestActions           NextBestAction[]
+  events                    Event[]
+  revenueAttributions      RevenueAttribution[]
+  contentEconomics          ContentEconomics[]
+  moneyOpportunities        MoneyOpportunity[]
+  revenueForecasts          RevenueForecast[]
+  profitSnapshots           ProfitSnapshot[]
+  contentDecayScores        ContentDecayScore[]
+  contentConsolidationRecs  ContentConsolidationRecommendation[]
+  competitors               Competitor[]
+  workflows                 Workflow[]
+  workflowRuns              WorkflowRun[]
+  agentRuns                 AgentRun[]
+  themeActivations          ThemeActivation[]
+  usageCounters            UsageCounter[]
+
+  @@index([organizationId])
+  @@index([organizationId, isActive])
 }
 
 model RssFeed {
@@ -190,6 +213,12 @@ model Article {
   socialPosts            SocialPost[]
   calendarEvents         ContentCalendarEvent[]
   contentJobs           ContentJob[]
+
+  // Phase 3 — Money engine, attribution, decay
+  revenueAttributions   RevenueAttribution[]
+  contentEconomics      ContentEconomics[]
+  moneyOpportunities    MoneyOpportunity[]
+  contentDecayScore     ContentDecayScore?
 
   @@unique([sourceUrl, siteId])
   @@index([siteId])
@@ -501,6 +530,7 @@ model Subscriber {
   affiliateClicks AffiliateClick[]
   productPurchases ProductPurchase[]
   conversionEvents ConversionEvent[]
+  revenueAttributions RevenueAttribution[]
 
   @@unique([email, siteId])
   @@index([siteId])
@@ -525,6 +555,7 @@ model Lead {
   subscriber     Subscriber?   @relation(fields: [subscriberId], references: [id])
   article        Article?      @relation(fields: [articleId], references: [id])
   leadMagnet     LeadMagnet?   @relation(fields: [leadMagnetId], references: [id])
+  revenueAttributions RevenueAttribution[]
 
   @@index([siteId])
   @@index([articleId])
@@ -1227,12 +1258,39 @@ model Organization {
   updatedAt   DateTime @updatedAt
 
   owner         User     @relation("OrganizationOwner", fields: [ownerId], references: [id])
+  plan          Plan?    @relation(fields: [planId], references: [id])
   members       OrganizationMember[]
   sites         Site[]
   subscriptions Subscription[]
   apiKeys       ApiKey[]
   auditLogs     AuditLog[]
   usageRecords  UsageRecord[]
+  invoices      Invoice[]
+  themes        Theme[]
+  clientAccounts ClientAccount[]
+
+  // Phase 3 — Command centre, events, money engine
+  dashboardSnapshots   DashboardSnapshot[]
+  businessHealthScores BusinessHealthScore[]
+  nextBestActions      NextBestAction[]
+  events               Event[]
+  revenueAttributions  RevenueAttribution[]
+  contentEconomics     ContentEconomics[]
+  moneyOpportunities   MoneyOpportunity[]
+  revenueForecasts     RevenueForecast[]
+  profitSnapshots      ProfitSnapshot[]
+  contentDecayScores   ContentDecayScore[]
+  contentConsolidationRecs ContentConsolidationRecommendation[]
+  competitors          Competitor[]
+  workflows            Workflow[]
+  agents               Agent[]
+  agentRuns            AgentRun[]
+  themeActivations     ThemeActivation[]
+  entitlements         Entitlement[]
+  usageCounters        UsageCounter[]
+  billingEvents        BillingEvent[]
+
+  @@index([status])
 }
 
 model OrganizationMember {
@@ -1266,6 +1324,8 @@ model Plan {
   updatedAt       DateTime @updatedAt
 
   subscriptions   Subscription[]
+  organizations   Organization[]
+  planFeatures    PlanFeature[]
 }
 
 model Subscription {
@@ -1283,6 +1343,9 @@ model Subscription {
 
   organization        Organization @relation(fields: [organizationId], references: [id])
   plan                Plan         @relation(fields: [planId], references: [id])
+
+  @@index([organizationId, status])
+  @@index([provider, externalId])
 }
 
 model UsageRecord {
@@ -1296,6 +1359,7 @@ model UsageRecord {
   createdAt      DateTime @default(now())
 
   organization   Organization @relation(fields: [organizationId], references: [id])
+  site           Site?        @relation(fields: [siteId], references: [id], onDelete: Cascade)
 }
 
 model ContentJob {
@@ -1489,4 +1553,665 @@ model CostEvent {
   @@index([siteId])
   @@index([category])
   @@index([date])
+}
+
+// ─── PHASE 3 — COMMAND CENTRE ─────────────────────────────────
+
+model DashboardSnapshot {
+  id              String   @id @default(cuid())
+  organizationId  String
+  siteId          String?
+  periodStart     DateTime
+  periodEnd       DateTime
+
+  revenue         Float    @default(0)
+  profit          Float    @default(0)
+  traffic         Int      @default(0)
+  leads           Int      @default(0)
+  subscribers     Int      @default(0)
+  conversionRate  Float    @default(0)
+  aiCost          Float    @default(0)
+
+  generatedAt     DateTime @default(now())
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site            Site?        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, periodStart])
+  @@index([siteId, periodStart])
+}
+
+model BusinessHealthScore {
+  id             String   @id @default(cuid())
+  organizationId String
+  siteId         String?
+  metric         String
+  score          Int
+  confidence     Int      @default(0)
+  periodStart    DateTime
+  periodEnd      DateTime
+  calculatedAt   DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site           Site?        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, siteId, metric, periodStart, periodEnd])
+  @@index([siteId, metric])
+}
+
+model NextBestAction {
+  id                String   @id @default(cuid())
+  organizationId    String
+  siteId            String?
+
+  actionType        String
+  title             String
+  reason            String
+
+  impactScore       Int
+  effortScore       Int
+  confidenceScore   Int
+
+  estimatedRevenue  Float?
+
+  sourceType        String?
+  sourceId          String?
+
+  status            String   @default("PENDING")
+
+  createdAt         DateTime @default(now())
+  completedAt       DateTime?
+
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site              Site?        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([siteId, status])
+}
+
+// ─── PHASE 3 — UNIFIED EVENT LAYER ────────────────────────────
+
+model Event {
+  id             String   @id @default(cuid())
+  organizationId String
+  siteId         String?
+  userId         String?
+  visitorId      String?
+  sessionId      String?
+  eventType      String
+  entityType     String?
+  entityId       String?
+  properties     String?
+  source         String?
+  occurredAt     DateTime
+  receivedAt     DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site           Site?        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  attributions   RevenueAttribution[]
+
+  @@index([organizationId, occurredAt])
+  @@index([siteId, occurredAt])
+  @@index([eventType, occurredAt])
+  @@index([entityType, entityId])
+  @@index([visitorId, sessionId])
+}
+
+// ─── PHASE 3 — REVENUE ATTRIBUTION ────────────────────────────
+
+model RevenueAttribution {
+  id               String   @id @default(cuid())
+  organizationId   String
+  siteId           String?
+  visitorId        String?
+  sessionId        String?
+  articleId        String?
+  eventId          String?
+  leadId           String?
+  subscriberId     String?
+  offerType        String?
+  offerId          String?
+  conversionId     String?
+  revenueId        String?
+  attributedAmount Float
+  currency         String   @default("NGN")
+  attributionModel String
+  occurredAt       DateTime
+
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site             Site?        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  article          Article?     @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  event            Event?       @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  lead             Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  subscriber       Subscriber?  @relation(fields: [subscriberId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, occurredAt])
+  @@index([siteId, articleId])
+  @@index([articleId, occurredAt])
+}
+
+// ─── PHASE 3 — CONTENT ECONOMICS ──────────────────────────────
+
+model ContentEconomics {
+  id             String   @id @default(cuid())
+  organizationId String
+  siteId         String
+  articleId      String
+  periodStart    DateTime
+  periodEnd      DateTime
+  revenue        Float    @default(0)
+  aiCost         Float    @default(0)
+  promotionCost  Float    @default(0)
+  otherCost      Float    @default(0)
+  totalCost      Float    @default(0)
+  profit         Float    @default(0)
+  roi            Float    @default(0)
+  calculatedAt   DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site           Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  article        Article      @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, periodStart, periodEnd])
+  @@index([organizationId, siteId])
+  @@index([siteId, profit])
+}
+
+// ─── PHASE 3 — MONEY ENGINE ───────────────────────────────────
+
+model MoneyOpportunity {
+  id               String   @id @default(cuid())
+  organizationId   String
+  siteId           String
+  articleId        String?
+  opportunityType  String
+  moneyScore       Int
+  currentRevenue   Float    @default(0)
+  estimatedUpside  Float    @default(0)
+  confidence       Int      @default(0)
+  recommendedAction String
+  status           String   @default("OPEN")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site             Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  article          Article?     @relation(fields: [articleId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([siteId, moneyScore])
+  @@index([articleId])
+}
+
+model ProfitSnapshot {
+  id             String   @id @default(cuid())
+  organizationId String
+  siteId         String?
+  periodStart    DateTime
+  periodEnd      DateTime
+  revenue        Float    @default(0)
+  costs          Float    @default(0)
+  profit         Float    @default(0)
+  roi            Float    @default(0)
+  calculatedAt   DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site           Site?        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, siteId, periodStart, periodEnd])
+  @@index([organizationId, periodStart])
+}
+
+model RevenueForecast {
+  id               String   @id @default(cuid())
+  organizationId   String
+  siteId           String?
+  forecastDate     DateTime
+  lowEstimate      Float
+  expectedEstimate Float
+  highEstimate     Float
+  confidence       Int      @default(0)
+  methodology      String?
+  metadata         String?
+  createdAt        DateTime @default(now())
+
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site             Site?        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, forecastDate])
+  @@index([siteId, forecastDate])
+}
+
+// ─── PHASE 3 — CONTENT INTELLIGENCE ───────────────────────────
+
+model ContentDecayScore {
+  id                String   @id @default(cuid())
+  organizationId    String
+  siteId            String
+  articleId         String
+  score             Int
+  trafficDelta      Float    @default(0)
+  rankingDelta      Float    @default(0)
+  ctrDelta          Float    @default(0)
+  revenueDelta      Float    @default(0)
+  reasons           String?
+  recommendedAction String?
+  calculatedAt      DateTime @default(now())
+
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site              Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  article           Article      @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId])
+  @@index([siteId, score])
+}
+
+model ContentConsolidationRecommendation {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  siteId             String
+  primaryArticleId   String
+  secondaryArticleId String
+  reason             String
+  confidence         Int      @default(0)
+  status             String   @default("OPEN")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site               Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, status])
+}
+
+// ─── PHASE 3 — COMPETITOR INTELLIGENCE ────────────────────────
+
+model Competitor {
+  id             String   @id @default(cuid())
+  organizationId String
+  siteId         String
+  name           String
+  domain         String
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site           Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  pages          CompetitorPage[]
+  competitorChanges CompetitorChange[]
+
+  @@unique([siteId, domain])
+  @@index([organizationId])
+}
+
+model CompetitorPage {
+  id            String   @id @default(cuid())
+  competitorId  String
+  url           String
+  title         String?
+  topic         String?
+  metadata      String?
+  lastCheckedAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  competitor    Competitor      @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  changes       CompetitorChange[]
+
+  @@unique([competitorId, url])
+  @@index([competitorId])
+}
+
+model CompetitorChange {
+  id            String   @id @default(cuid())
+  competitorId  String
+  pageId        String
+  changeType    String
+  metadata      String?
+  detectedAt    DateTime @default(now())
+
+  competitor    Competitor      @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  page          CompetitorPage  @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([competitorId, detectedAt])
+  @@index([pageId, detectedAt])
+}
+
+// ─── PHASE 3 — AUTOMATION ENGINE ──────────────────────────────
+
+model Workflow {
+  id             String   @id @default(cuid())
+  organizationId String
+  siteId         String?
+  name           String
+  description    String?
+  status         String   @default("DRAFT")
+  autonomyLevel  String   @default("MANUAL")
+  currentVersion Int      @default(1)
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site           Site?            @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  versions       WorkflowVersion[]
+  runs           WorkflowRun[]
+
+  @@index([organizationId, status])
+  @@index([siteId, status])
+}
+
+model WorkflowVersion {
+  id          String   @id @default(cuid())
+  workflowId  String
+  version     Int
+  createdAt   DateTime @default(now())
+
+  workflow    Workflow       @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  steps       WorkflowStep[]
+
+  @@unique([workflowId, version])
+}
+
+model WorkflowStep {
+  id                String   @id @default(cuid())
+  workflowVersionId String
+  stepOrder         Int
+  stepType          String
+  configuration     String?
+  approvalRequired  Boolean  @default(false)
+  timeoutSeconds    Int?
+  createdAt         DateTime @default(now())
+
+  workflowVersion   WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowVersionId, stepOrder])
+}
+
+model WorkflowRun {
+  id             String   @id @default(cuid())
+  workflowId     String
+  siteId         String?
+  status         String   @default("QUEUED")
+  triggerPayload String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+
+  workflow       Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  site           Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([workflowId, status])
+  @@index([siteId, status])
+}
+
+// ─── PHASE 3 — AI AGENT SYSTEM ────────────────────────────────
+
+model Agent {
+  id                  String   @id @default(cuid())
+  organizationId      String?
+  name                String
+  type                String
+  provider            String?
+  model               String?
+  systemConfiguration String?
+  permissions         String?
+  maxCost             Float?
+  status              String   @default("ACTIVE")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  organization        Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tools               AgentTool[]
+  runs                AgentRun[]
+
+  @@index([organizationId, type])
+}
+
+model AgentTool {
+  id          String   @id @default(cuid())
+  agentId     String
+  name        String
+  description String?
+  permissions String?
+  enabled     Boolean  @default(true)
+
+  agent       Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, name])
+}
+
+model AgentRun {
+  id              String   @id @default(cuid())
+  agentId         String
+  organizationId  String
+  siteId          String?
+  input           String?
+  output          String?
+  status          String   @default("QUEUED")
+  inputTokens     Int      @default(0)
+  outputTokens    Int      @default(0)
+  estimatedCost   Float    @default(0)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  agent           Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site            Site?        @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  toolCalls       AgentToolCall[]
+  outputs         AgentOutput[]
+
+  @@index([organizationId, status])
+  @@index([agentId, status])
+  @@index([siteId, createdAt])
+}
+
+model AgentToolCall {
+  id          String   @id @default(cuid())
+  agentRunId  String
+  toolName    String
+  input       String?
+  output      String?
+  status      String   @default("PENDING")
+  durationMs  Int?
+  cost        Float    @default(0)
+  createdAt   DateTime @default(now())
+
+  agentRun    AgentRun @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+
+  @@index([agentRunId])
+}
+
+model AgentOutput {
+  id         String   @id @default(cuid())
+  agentRunId String
+  outputType String
+  content    String?
+  approved   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  agentRun   AgentRun @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+
+  @@index([agentRunId])
+}
+
+// ─── PHASE 3 — THEME SYSTEM ───────────────────────────────────
+
+model Theme {
+  id                  String   @id @default(cuid())
+  ownerOrganizationId String?
+  name                String
+  slug                String
+  themeType           String   @default("SYSTEM")
+  description         String?
+  status              String   @default("ACTIVE")
+  manifest            String
+  tokens              String?
+  createdById         String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  ownerOrganization   Organization? @relation(fields: [ownerOrganizationId], references: [id], onDelete: Cascade)
+  versions            ThemeVersion[]
+  activations         ThemeActivation[]
+  assets              ThemeAsset[]
+
+  @@unique([ownerOrganizationId, slug])
+  @@index([themeType, status])
+}
+
+model ThemeVersion {
+  id                  String   @id @default(cuid())
+  themeId             String
+  version             String
+  manifest            String
+  tokens              String?
+  compatibilityVersion String
+  validationStatus    String   @default("PENDING")
+  createdAt           DateTime @default(now())
+
+  theme               Theme            @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  activations         ThemeActivation[]
+
+  @@unique([themeId, version])
+}
+
+model ThemeAsset {
+  id        String   @id @default(cuid())
+  themeId   String
+  path      String
+  url       String
+  mimeType  String?
+  fileSize  Int?
+  checksum  String?
+  createdAt DateTime @default(now())
+
+  theme     Theme @relation(fields: [themeId], references: [id], onDelete: Cascade)
+
+  @@index([themeId])
+}
+
+model ThemeActivation {
+  id              String   @id @default(cuid())
+  organizationId  String
+  siteId          String
+  themeId         String
+  themeVersionId  String
+  activatedById   String?
+  activatedAt     DateTime @default(now())
+
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site            Site          @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  theme           Theme         @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  themeVersion    ThemeVersion  @relation(fields: [themeVersionId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, siteId])
+  @@index([siteId, activatedAt])
+}
+
+// ─── PHASE 3 — BILLING & ENTITLEMENTS ─────────────────────────
+
+model PlanFeature {
+  id         String   @id @default(cuid())
+  planId     String
+  featureKey String
+  limitValue Float?
+  limitPeriod String?
+  enabled    Boolean  @default(true)
+
+  plan       Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, featureKey])
+}
+
+model Entitlement {
+  id             String   @id @default(cuid())
+  organizationId String
+  featureKey     String
+  limitValue     Float?
+  sourcePlanId   String?
+  effectiveFrom  DateTime
+  effectiveTo    DateTime?
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, featureKey])
+  @@index([organizationId, effectiveFrom])
+}
+
+model UsageCounter {
+  id             String   @id @default(cuid())
+  organizationId String
+  siteId         String?
+  featureKey     String
+  periodStart    DateTime
+  periodEnd      DateTime
+  usedValue      Float    @default(0)
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site           Site?        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, siteId, featureKey, periodStart, periodEnd])
+  @@index([organizationId, featureKey])
+}
+
+model BillingEvent {
+  id              String   @id @default(cuid())
+  organizationId  String
+  provider        String
+  externalEventId String
+  eventType       String
+  payload         String?
+  status          String   @default("RECEIVED")
+  processedAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, externalEventId])
+  @@index([organizationId, createdAt])
+  @@index([status])
+}
+
+model Invoice {
+  id                String   @id @default(cuid())
+  organizationId    String
+  provider          String?
+  externalInvoiceId String?
+  amount            Float
+  currency          String   @default("NGN")
+  status            String   @default("OPEN")
+  issuedAt          DateTime?
+  dueAt             DateTime?
+  paidAt            DateTime?
+  metadata          String?
+  createdAt         DateTime @default(now())
+
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, externalInvoiceId])
+  @@index([organizationId, status])
+}
+
+// ─── PHASE 3 — CLIENT ACCOUNTS ────────────────────────────────
+
+model ClientAccount {
+  id             String   @id @default(cuid())
+  organizationId String
+  siteId         String?
+  name           String
+  email          String
+  status         String   @default("ACTIVE")
+  metadata       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([siteId])
 }

@@ -1,15 +1,17 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Sparkles,
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";import { Sparkles,
   Search,
   BarChart3,
   Link2,
   Send,
   History,
   DollarSign,
+  Copy,
+  Clock,
+  FlaskConical,
+  Users,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -35,6 +37,11 @@ import { ArticleQualityPanel } from "./article-quality-panel";
 import { ArticleLinksPanel } from "./article-links-panel";
 import { ArticleHistoryPanel } from "./article-history-panel";
 import { ArticlePublishPanel } from "./article-publish-panel";
+import { RepurposePanel } from "./repurpose-panel";
+import { SmartSchedulerPanel } from "./smart-scheduler-panel";
+import { HeadlineABPanel } from "./headline-ab-panel";
+import { EngagementPanel } from "./engagement-panel";
+import { CollaborationPanel } from "./collaboration-panel";
 import { ArticleMonetizationPanel } from "./article-monetization-panel";
 import { getArticles, updateArticle, deleteArticle, publishArticle, scheduleArticle } from "@/lib/api";
 import type { Article } from "@/lib/api";
@@ -281,6 +288,18 @@ export function ArticleEditor({ articleId, siteId, onBack, onNavigate, hasPrev =
               <TabsTrigger value="monetization" className="gap-1 text-xs data-[state=active]:border-b-2 data-[state=active]:border-emerald-500 data-[state=active]:shadow-none rounded-none px-3 py-2.5">
                 <DollarSign className="size-3" /> Money
               </TabsTrigger>
+              <TabsTrigger value="repurpose" className="gap-1 text-xs data-[state=active]:border-b-2 data-[state=active]:border-orange-500 data-[state=active]:shadow-none rounded-none px-3 py-2.5">
+                <Copy className="size-3" /> Repurpose
+              </TabsTrigger>
+              <TabsTrigger value="schedule" className="gap-1 text-xs data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:shadow-none rounded-none px-3 py-2.5">
+                <Clock className="size-3" /> Schedule
+              </TabsTrigger>
+              <TabsTrigger value="abtest" className="gap-1 text-xs data-[state=active]:border-b-2 data-[state=active]:border-violet-500 data-[state=active]:shadow-none rounded-none px-3 py-2.5">
+                <FlaskConical className="size-3" /> A/B
+              </TabsTrigger>
+              <TabsTrigger value="collab" className="gap-1 text-xs data-[state=active]:border-b-2 data-[state=active]:border-indigo-500 data-[state=active]:shadow-none rounded-none px-3 py-2.5">
+                <Users className="size-3" /> Collab
+              </TabsTrigger>
               <TabsTrigger value="publish" className="gap-1 text-xs data-[state=active]:border-b-2 data-[state=active]:border-violet-500 data-[state=active]:shadow-none rounded-none px-3 py-2.5">
                 <Send className="size-3" /> Publish
               </TabsTrigger>
@@ -344,6 +363,21 @@ export function ArticleEditor({ articleId, siteId, onBack, onNavigate, hasPrev =
                   }}
                 />
               </TabsContent>
+              <TabsContent value="repurpose" className="m-0">
+                <RepurposePanel articleId={articleId} siteId={siteId} />
+              </TabsContent>
+              <TabsContent value="schedule" className="m-0">
+                <SmartSchedulerPanel articleId={articleId} siteId={siteId} />
+              </TabsContent>
+              <TabsContent value="abtest" className="m-0">
+                <HeadlineABPanel articleId={articleId} siteId={siteId} />
+              </TabsContent>
+              <TabsContent value="engagement" className="m-0">
+                <EngagementPanel articleId={articleId} siteId={siteId} />
+              </TabsContent>
+              <TabsContent value="collab" className="m-0">
+                <CollaborationPanel articleId={articleId} siteId={siteId} />
+              </TabsContent>
               <TabsContent value="monetization" className="m-0">
                 <ArticleMonetizationPanel articleId={articleId} siteId={siteId} />
               </TabsContent>
@@ -398,6 +432,10 @@ export function ArticleEditor({ articleId, siteId, onBack, onNavigate, hasPrev =
               { key: "seo", Icon: Search, label: "SEO" },
               { key: "quality", Icon: BarChart3, label: "Score" },
               { key: "monetization", Icon: DollarSign, label: "Money" },
+              { key: "repurpose", Icon: Copy, label: "Repurpose" },
+              { key: "schedule", Icon: Clock, label: "Schedule" },
+              { key: "abtest", Icon: FlaskConical, label: "A/B" },
+              { key: "collab", Icon: Users, label: "Collab" },
               { key: "publish", Icon: Send, label: "Publish" },
             ].map(({ key, Icon, label }) => (
               <button

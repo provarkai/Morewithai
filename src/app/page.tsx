@@ -33,6 +33,7 @@ import { MediaView } from "@/components/views/media-view";
 import { LandingPagesView } from "@/components/views/landing-pages-view";
 import { ContentDecayView } from "@/components/views/content-decay-view";
 import { IntelligenceView } from "@/components/views/intelligence-view";
+import { CommandCenterView } from "@/components/views/command-center-view";
 import { PortfolioView } from "@/components/views/portfolio-view";
 import { BillingView } from "@/components/views/billing-view";
 import { getSites, logout } from "@/lib/api";
@@ -177,6 +178,13 @@ export default function HomePage() {
       case "landing-pages": return <LandingPagesView siteId={effectiveSiteId} />;
       case "content-decay": return <ContentDecayView siteId={effectiveSiteId} />;
       case "intelligence": return <IntelligenceView siteId={effectiveSiteId} onEditArticle={handleEditArticle} />;
+      case "command-dashboard": return <CommandCenterView siteId={effectiveSiteId} subView="dashboard" />;
+      case "command-events": return <CommandCenterView siteId={effectiveSiteId} subView="events" />;
+      case "command-attribution": return <CommandCenterView siteId={effectiveSiteId} subView="attribution" />;
+      case "command-competitors": return <CommandCenterView siteId={effectiveSiteId} subView="competitors" />;
+      case "command-workflows": return <CommandCenterView siteId={effectiveSiteId} subView="workflows" />;
+      case "command-agents": return <CommandCenterView siteId={effectiveSiteId} subView="agents" />;
+      case "command-economics": return <CommandCenterView siteId={effectiveSiteId} subView="economics" />;
       case "billing": return <BillingView />
       case "ai-writer": return <ArticlesView siteId={effectiveSiteId} onEditArticle={handleEditArticle} />;
       case "seo": return <AnalyticsView siteId={effectiveSiteId} />;

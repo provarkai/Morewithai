@@ -124,6 +124,18 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: "Command Centre",
+    items: [
+      { key: "command-dashboard", title: "Dashboard", icon: LayoutDashboard },
+      { key: "command-events", title: "Events", icon: Globe },
+      { key: "command-attribution", title: "Attribution", icon: DollarSign },
+      { key: "command-competitors", title: "Competitors", icon: Search },
+      { key: "command-workflows", title: "Workflows", icon: Workflow },
+      { key: "command-agents", title: "Agents", icon: Bot },
+      { key: "command-economics", title: "Economics", icon: PieChart },
+    ],
+  },
+  {
     label: "System",
     items: [
       { key: "feeds", title: "RSS Feeds", icon: RefreshCw },

@@ -399,7 +399,7 @@ export function getSocialPosts(siteId: string, params?: { platform?: string; sta
 }
 export function getSocialStats(siteId: string) { return fetchAPI<any>(withSiteId('/api/social/posts', siteId, { action: 'stats' })); }
 export function generateSocialPosts(siteId: string, articleId: string) { return fetchAPI<any>(`/api/social/posts?action=generate&siteId=${siteId}`, { method: 'POST', body: JSON.stringify({ articleId }) }); }
-export function repurposeArticle(siteId: string, articleId: string) { return fetchAPI<any>(`/api/social/posts?action=repurpose&siteId=${siteId}`, { method: 'POST', body: JSON.stringify({ articleId }) }); }
+export function socialRepurposeArticle(siteId: string, articleId: string) { return fetchAPI<any>(`/api/social/posts?action=repurpose&siteId=${siteId}`, { method: 'POST', body: JSON.stringify({ articleId }) }); }
 export function getSocialTemplates(siteId: string, params?: { platform?: string }) {
   const qp: Record<string, string> = {};
   if (params?.platform) qp.platform = params.platform;
@@ -556,3 +556,72 @@ export interface Article { id: string; title: string; originalTitle: string; ori
 export interface ArticlesResponse { articles: Article[]; total: number; page: number; limit: number; }
 export interface PublicArticlesResponse { articles: Article[]; total: number; page: number; limit: number; }
 export interface AutomationLog { id: string; action: string; status: string; message: string; details: string | null; createdAt: string; }
+
+// ─── Command Centre APIs ─────────────────────────────────────
+
+// Events
+export function getEventStats(organizationId: string, siteId?: string, days?: number) { return fetchAPI<any>('/api/command-center/events?' + new URLSearchParams({ organizationId, ...(siteId ? { siteId } : {}), ...(days ? { days: String(days) } : {}) }).toString()); }
+export function queryEvents(params: { organizationId: string; siteId?: string; eventType?: string; entityType?: string; page?: number; limit?: number }) { return fetchAPI<any>('/api/command-center/events?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined) as [string, string][]).toString()); }
+export function trackEvent(data: Record<string, unknown>) { return fetchAPI<any>('/api/command-center/events', { method: 'POST', body: JSON.stringify(data) }); }
+
+// Revenue Attribution
+export function getAttributions(params: { organizationId: string; siteId?: string; articleId?: string; page?: number; limit?: number }) { return fetchAPI<any>('/api/command-center/attribution?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined) as [string, string][]).toString()); }
+export function getAttributionByArticle(organizationId: string, siteId?: string, days?: number) { return fetchAPI<any>('/api/command-center/attribution?' + new URLSearchParams({ organizationId, action: 'by-article', ...(siteId ? { siteId } : {}), ...(days ? { days: String(days) } : {}) }).toString()); }
+export function recordAttribution(data: Record<string, unknown>) { return fetchAPI<any>('/api/command-center/attribution', { method: 'POST', body: JSON.stringify(data) }); }
+
+// Dashboard Snapshots
+export function getDashboardSnapshot(organizationId: string, siteId?: string) { return fetchAPI<any>('/api/command-center/dashboard?' + new URLSearchParams({ organizationId, action: 'latest', ...(siteId ? { siteId } : {}) }).toString()); }
+export function getDashboardSnapshots(organizationId: string, siteId?: string, limit?: number) { return fetchAPI<any>('/api/command-center/dashboard?' + new URLSearchParams({ organizationId, ...(siteId ? { siteId } : {}), ...(limit ? { limit: String(limit) } : {}) }).toString()); }
+export function generateDashboardSnapshot(data: Record<string, unknown>) { return fetchAPI<any>('/api/command-center/dashboard', { method: 'POST', body: JSON.stringify(data) }); }
+
+// Health Scores
+export function getHealthScores(organizationId: string, siteId?: string) { return fetchAPI<any>('/api/command-center/health?' + new URLSearchParams({ organizationId, ...(siteId ? { siteId } : {}) }).toString()); }
+export function recordHealthScores(data: Record<string, unknown>) { return fetchAPI<any>('/api/command-center/health', { method: 'POST', body: JSON.stringify(data) }); }
+
+// Competitors
+export function getCompetitors(organizationId: string, siteId?: string) { return fetchAPI<any>('/api/command-center/competitors?' + new URLSearchParams({ organizationId, ...(siteId ? { siteId } : {}) }).toString()); }
+export function getCompetitorStats(organizationId: string) { return fetchAPI<any>('/api/command-center/competitors?' + new URLSearchParams({ organizationId, action: 'stats' }).toString()); }
+export function getCompetitorChanges(organizationId: string, limit?: number) { return fetchAPI<any>('/api/command-center/competitors?' + new URLSearchParams({ organizationId, action: 'changes', ...(limit ? { limit: String(limit) } : {}) }).toString()); }
+export function createCompetitor(data: Record<string, unknown>) { return fetchAPI<any>('/api/command-center/competitors', { method: 'POST', body: JSON.stringify(data) }); }
+export function deleteCompetitor(id: string) { return fetchAPI<any>('/api/command-center/competitors?id=' + id, { method: 'DELETE' }); }
+
+// Workflows
+export function getWorkflows(organizationId: string, siteId?: string) { return fetchAPI<any>('/api/command-center/workflows?' + new URLSearchParams({ organizationId, ...(siteId ? { siteId } : {}) }).toString()); }
+export function getWorkflowDetail(id: string) { return fetchAPI<any>('/api/command-center/workflows?action=detail&id=' + id); }
+export function createWorkflow(data: Record<string, unknown>) { return fetchAPI<any>('/api/command-center/workflows', { method: 'POST', body: JSON.stringify(data) }); }
+export function updateWorkflow(data: { id: string; [key: string]: unknown }) { return fetchAPI<any>('/api/command-center/workflows', { method: 'PUT', body: JSON.stringify(data) }); }
+
+// Agents
+export function getAgents(organizationId?: string) { return fetchAPI<any>('/api/command-center/agents' + (organizationId ? '?' + new URLSearchParams({ organizationId }).toString() : '')); }
+export function getAgentDetail(id: string) { return fetchAPI<any>('/api/command-center/agents?action=detail&id=' + id); }
+export function createAgent(data: Record<string, unknown>) { return fetchAPI<any>('/api/command-center/agents', { method: 'POST', body: JSON.stringify(data) }); }
+
+// Economics
+export function getEconomicsSummary(siteId: string, periodStart?: string, periodEnd?: string) { return fetchAPI<any>('/api/command-center/economics?' + new URLSearchParams({ siteId, ...(periodStart ? { periodStart } : {}), ...(periodEnd ? { periodEnd } : {}) }).toString()); }
+export function getTopEarningArticles(siteId: string, limit?: number) { return fetchAPI<any>('/api/command-center/economics?' + new URLSearchParams({ siteId, action: 'top-earning', ...(limit ? { limit: String(limit) } : {}) }).toString()); }
+export function batchCalculateEconomics(data: Record<string, unknown>) { return fetchAPI<any>('/api/command-center/economics', { method: 'POST', body: JSON.stringify(data) }); }
+
+// ─── AI Repurposing ──────────────────────────────────────────
+export function getRepurposeFormats() { return fetchAPI<any[]>('/api/ai/repurpose'); }
+export function repurposeArticle(data: { articleId: string; siteId: string; format: string }) { return fetchAPI<any>('/api/ai/repurpose', { method: 'POST', body: JSON.stringify(data) }); }
+export function batchRepurposeArticle(data: { articleId: string; siteId: string; formats: string[] }) { return fetchAPI<any>('/api/ai/repurpose', { method: 'POST', body: JSON.stringify(data) }); }
+
+// ─── Smart Scheduler ───────────────────────────────────────
+export function getSmartSchedule(siteId: string, articleId?: string) { return fetchAPI<any>('/api/ai/smart-schedule?' + new URLSearchParams({ siteId, ...(articleId ? { articleId } : {}) }).toString()); }
+export function suggestSmartSchedule(data: { siteId: string; articleId: string }) { return fetchAPI<any>('/api/ai/smart-schedule', { method: 'POST', body: JSON.stringify(data) }); }
+
+// ─── Headline A/B Testing ───────────────────────────────────
+export function getHeadlineABTest(siteId: string, articleId: string) { return fetchAPI<any>('/api/ai/headline-ab?' + new URLSearchParams({ siteId, articleId }).toString()); }
+export function generateHeadlines(data: { siteId: string; articleId: string }) { return fetchAPI<any>('/api/ai/headline-ab', { method: 'POST', body: JSON.stringify({ action: 'generate', ...data }) }); }
+export function createHeadlineTest(data: { siteId: string; articleId: string; variants: string[] }) { return fetchAPI<any>('/api/ai/headline-ab', { method: 'POST', body: JSON.stringify({ action: 'create', ...data }) }); }
+
+// ─── Engagement Scoring ─────────────────────────────────────
+export function getArticleEngagement(siteId: string, articleId: string, days?: number) { return fetchAPI<any>('/api/engagement?' + new URLSearchParams({ siteId, articleId, ...(days ? { days: String(days) } : {}) }).toString()); }
+export function getSiteEngagement(siteId: string, days?: number) { return fetchAPI<any>('/api/engagement?' + new URLSearchParams({ siteId, ...(days ? { days: String(days) } : {}) }).toString()); }
+export function recordEngagementEvent(data: { articleId: string; siteId: string; visitorId: string; scrollDepth: number; timeOnPage: number }) { return fetchAPI<any>('/api/engagement', { method: 'POST', body: JSON.stringify(data) }); }
+
+// ─── Collaboration ───────────────────────────────────────────
+export function getCollaborationSession(articleId: string) { return fetchAPI<any>('/api/collaboration?articleId=' + articleId); }
+export function getCollabConfig(articleId: string) { return fetchAPI<any>('/api/collaboration?articleId=' + articleId + '&action=config'); }
+export function joinCollabSession(data: { articleId: string; userId: string; userName: string }) { return fetchAPI<any>('/api/collaboration', { method: 'POST', body: JSON.stringify({ action: 'join', ...data }) }); }
+export function leaveCollabSession(data: { articleId: string; userId: string }) { return fetchAPI<any>('/api/collaboration', { method: 'POST', body: JSON.stringify({ action: 'leave', ...data }) }); }
