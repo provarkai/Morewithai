@@ -1,0 +1,1047 @@
+diff -ruN '--exclude=node_modules' '--exclude=bun.lock' '--exclude=package-lock.json' pristine/Morewithai-main/prisma/migrations/20260903120000_reader_monetization/migration.sql Morewithai-main/prisma/migrations/20260903120000_reader_monetization/migration.sql
+--- pristine/Morewithai-main/prisma/migrations/20260903120000_reader_monetization/migration.sql	1970-01-01 00:00:00.000000000 +0000
++++ Morewithai-main/prisma/migrations/20260903120000_reader_monetization/migration.sql	2026-09-03 20:00:48.746448966 +0000
+@@ -0,0 +1,38 @@
++-- AlterTable
++ALTER TABLE "Product" ADD COLUMN "content" TEXT;
++
++-- AlterTable
++ALTER TABLE "Article" ADD COLUMN "premiumTierId" TEXT;
++
++-- CreateTable
++CREATE TABLE "ReaderSubscription" (
++    "id" TEXT NOT NULL,
++    "subscriberId" TEXT NOT NULL,
++    "siteId" TEXT NOT NULL,
++    "planId" TEXT NOT NULL,
++    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
++    "provider" TEXT NOT NULL DEFAULT 'STRIPE',
++    "externalId" TEXT,
++    "currentPeriodStart" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "currentPeriodEnd" TIMESTAMP(3),
++    "canceledAt" TIMESTAMP(3),
++    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "updatedAt" TIMESTAMP(3) NOT NULL,
++
++    CONSTRAINT "ReaderSubscription_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateIndex
++CREATE INDEX "ReaderSubscription_subscriberId_status_idx" ON "ReaderSubscription"("subscriberId", "status");
++
++-- CreateIndex
++CREATE INDEX "ReaderSubscription_siteId_idx" ON "ReaderSubscription"("siteId");
++
++-- CreateIndex
++CREATE INDEX "ReaderSubscription_provider_externalId_idx" ON "ReaderSubscription"("provider", "externalId");
++
++-- AddForeignKey
++ALTER TABLE "ReaderSubscription" ADD CONSTRAINT "ReaderSubscription_subscriberId_fkey" FOREIGN KEY ("subscriberId") REFERENCES "Subscriber"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "ReaderSubscription" ADD CONSTRAINT "ReaderSubscription_planId_fkey" FOREIGN KEY ("planId") REFERENCES "Plan"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+diff -ruN '--exclude=node_modules' '--exclude=bun.lock' '--exclude=package-lock.json' pristine/Morewithai-main/prisma/schema.prisma Morewithai-main/prisma/schema.prisma
+--- pristine/Morewithai-main/prisma/schema.prisma	2026-09-03 13:54:42.000000000 +0000
++++ Morewithai-main/prisma/schema.prisma	2026-09-03 20:00:40.121772195 +0000
+@@ -171,6 +171,7 @@
+   lastReviewedAt   DateTime?
+   nextReviewAt     DateTime?
+   publishedVersionId String?
++  premiumTierId    String?  // Plan.id required to read full content, if gated
+ 
+   // Status — now validated by workflow (see src/lib/articles/status.ts)
+   status           String   @default("fetched")
+@@ -531,6 +532,7 @@
+   productPurchases ProductPurchase[]
+   conversionEvents ConversionEvent[]
+   revenueAttributions RevenueAttribution[]
++  readerSubscriptions ReaderSubscription[]
+ 
+   @@unique([email, siteId])
+   @@index([siteId])
+@@ -838,6 +840,7 @@
+   productType      String   @default("EBOOK")
+   checkoutUrl      String?
+   imageUrl         String?
++  content          String?  // JSON: course chapters/lessons for productType=COURSE
+   status           String   @default("DRAFT")
+   purchaseCount    Int      @default(0)
+   revenueGenerated Float    @default(0)
+@@ -1326,6 +1329,7 @@
+   subscriptions   Subscription[]
+   organizations   Organization[]
+   planFeatures    PlanFeature[]
++  readerSubscriptions ReaderSubscription[]
+ }
+ 
+ model Subscription {
+@@ -1348,6 +1352,28 @@
+   @@index([provider, externalId])
+ }
+ 
++model ReaderSubscription {
++  id                 String    @id @default(cuid())
++  subscriberId       String
++  siteId             String
++  planId             String
++  status             String    @default("ACTIVE")
++  provider           String    @default("STRIPE")
++  externalId         String?
++  currentPeriodStart DateTime  @default(now())
++  currentPeriodEnd   DateTime?
++  canceledAt         DateTime?
++  createdAt          DateTime  @default(now())
++  updatedAt          DateTime  @updatedAt
++
++  subscriber         Subscriber @relation(fields: [subscriberId], references: [id])
++  plan               Plan       @relation(fields: [planId], references: [id])
++
++  @@index([subscriberId, status])
++  @@index([siteId])
++  @@index([provider, externalId])
++}
++
+ model UsageRecord {
+   id             String   @id @default(cuid())
+   organizationId String
+diff -ruN '--exclude=node_modules' '--exclude=bun.lock' '--exclude=package-lock.json' pristine/Morewithai-main/src/app/api/public/courses/[courseId]/checkout/route.ts Morewithai-main/src/app/api/public/courses/[courseId]/checkout/route.ts
+--- pristine/Morewithai-main/src/app/api/public/courses/[courseId]/checkout/route.ts	1970-01-01 00:00:00.000000000 +0000
++++ Morewithai-main/src/app/api/public/courses/[courseId]/checkout/route.ts	2026-09-04 14:18:59.078181796 +0000
+@@ -0,0 +1,25 @@
++import { NextRequest, NextResponse } from 'next/server';
++import { createCourseCheckoutSession } from '@/lib/monetization/course-builder.service';
++
++const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
++
++export async function POST(req: NextRequest, { params }: { params: { courseId: string } }) {
++  try {
++    const { courseId } = params;
++    const body = await req.json();
++    const { email, successUrl, cancelUrl } = body;
++
++    if (!email || typeof email !== 'string' || !emailRegex.test(email)) {
++      return NextResponse.json({ error: 'Valid email required' }, { status: 400 });
++    }
++    if (!successUrl || !cancelUrl) {
++      return NextResponse.json({ error: 'successUrl and cancelUrl required' }, { status: 400 });
++    }
++
++    const session = await createCourseCheckoutSession(courseId, email, successUrl, cancelUrl);
++    return NextResponse.json({ url: session.url });
++  } catch (error: any) {
++    console.error('Course checkout error:', error);
++    return NextResponse.json({ error: error.message || 'Checkout failed' }, { status: 400 });
++  }
++}
+diff -ruN '--exclude=node_modules' '--exclude=bun.lock' '--exclude=package-lock.json' pristine/Morewithai-main/src/app/api/public/newsletters/[tierId]/checkout/route.ts Morewithai-main/src/app/api/public/newsletters/[tierId]/checkout/route.ts
+--- pristine/Morewithai-main/src/app/api/public/newsletters/[tierId]/checkout/route.ts	1970-01-01 00:00:00.000000000 +0000
++++ Morewithai-main/src/app/api/public/newsletters/[tierId]/checkout/route.ts	2026-09-04 14:19:03.678182069 +0000
+@@ -0,0 +1,26 @@
++import { NextRequest, NextResponse } from 'next/server';
++import { createNewsletterCheckoutSession } from '@/lib/monetization/paid-newsletters.service';
++
++const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
++
++export async function POST(req: NextRequest, { params }: { params: { tierId: string } }) {
++  try {
++    const { tierId } = params;
++    const body = await req.json();
++    const { siteId, email, successUrl, cancelUrl } = body;
++
++    if (!siteId) return NextResponse.json({ error: 'siteId required' }, { status: 400 });
++    if (!email || typeof email !== 'string' || !emailRegex.test(email)) {
++      return NextResponse.json({ error: 'Valid email required' }, { status: 400 });
++    }
++    if (!successUrl || !cancelUrl) {
++      return NextResponse.json({ error: 'successUrl and cancelUrl required' }, { status: 400 });
++    }
++
++    const session = await createNewsletterCheckoutSession(siteId, tierId, email, successUrl, cancelUrl);
++    return NextResponse.json({ url: session.url });
++  } catch (error: any) {
++    console.error('Newsletter checkout error:', error);
++    return NextResponse.json({ error: error.message || 'Checkout failed' }, { status: 400 });
++  }
++}
+diff -ruN '--exclude=node_modules' '--exclude=bun.lock' '--exclude=package-lock.json' pristine/Morewithai-main/src/app/api/public/sites/route.ts Morewithai-main/src/app/api/public/sites/route.ts
+--- pristine/Morewithai-main/src/app/api/public/sites/route.ts	1970-01-01 00:00:00.000000000 +0000
++++ Morewithai-main/src/app/api/public/sites/route.ts	2026-09-04 20:20:52.555781992 +0000
+@@ -0,0 +1,19 @@
++import { db } from '@/lib/db';
++import { NextResponse } from 'next/server';
++
++// Public, unauthenticated: minimal fields only, no admin/internal data.
++// The anonymous blog homepage needs this to know which site to render —
++// it must not depend on the admin /api/sites route (which requires auth).
++export async function GET() {
++  try {
++    const sites = await db.site.findMany({
++      where: { isActive: true },
++      select: { id: true, name: true, slug: true, description: true, domain: true, theme: true },
++      orderBy: { createdAt: 'asc' },
++    });
++    return NextResponse.json(sites);
++  } catch (error) {
++    console.error('Error fetching public sites:', error);
++    return NextResponse.json({ error: 'Failed to load sites' }, { status: 500 });
++  }
++}
+diff -ruN '--exclude=node_modules' '--exclude=bun.lock' '--exclude=package-lock.json' pristine/Morewithai-main/src/app/auth/reset/page.tsx Morewithai-main/src/app/auth/reset/page.tsx
+--- pristine/Morewithai-main/src/app/auth/reset/page.tsx	2026-09-03 13:54:42.000000000 +0000
++++ Morewithai-main/src/app/auth/reset/page.tsx	2026-09-03 19:20:30.139424527 +0000
+@@ -1,6 +1,6 @@
+ "use client";
+ 
+-import { useState, useEffect } from "react";
++import { useState, useEffect, Suspense } from "react";
+ import { useSearchParams } from "next/navigation";
+ import { Button } from "@/components/ui/button";
+ import { Input } from "@/components/ui/input";
+@@ -22,6 +22,14 @@
+ import Link from "next/link";
+ 
+ export default function ResetPasswordPage() {
++  return (
++    <Suspense fallback={null}>
++      <ResetPasswordForm />
++    </Suspense>
++  );
++}
++
++function ResetPasswordForm() {
+   const searchParams = useSearchParams();
+   const token = searchParams.get("token");
+ 
+diff -ruN '--exclude=node_modules' '--exclude=bun.lock' '--exclude=package-lock.json' pristine/Morewithai-main/src/app/page.tsx Morewithai-main/src/app/page.tsx
+--- pristine/Morewithai-main/src/app/page.tsx	2026-09-03 13:54:42.000000000 +0000
++++ Morewithai-main/src/app/page.tsx	2026-09-04 20:21:19.740124856 +0000
+@@ -45,7 +45,7 @@
+ import CoursesView from "@/components/views/courses-view";
+ import WhiteLabelView from "@/components/views/white-label-view";
+ import SponsoredMarketplaceView from "@/components/views/sponsored-marketplace-view";
+-import { getSites, logout } from "@/lib/api";
++import { getSites, getPublicSites, logout } from "@/lib/api";
+ import type { Article } from "@/lib/api";
+ import { PageHeader } from "@/components/app/page-header";
+ 
+@@ -82,11 +82,21 @@
+   const { data: sites = [] } = useQuery({
+     queryKey: ["sites"],
+     queryFn: getSites,
++    enabled: mode === "admin", // admin-only endpoint — never call it as an anonymous visitor
+   });
+ 
+-  const effectiveSiteId = selectedSiteId || (sites.length > 0 ? sites[0].id : "");
++  // Anonymous visitors can't hit /api/sites (it requires auth), so the public
++  // blog homepage resolves its site list from this unauthenticated endpoint instead.
++  const { data: publicSites = [] } = useQuery({
++    queryKey: ["public-sites"],
++    queryFn: getPublicSites,
++    enabled: mode === "public",
++  });
++
++  const visibleSites = mode === "public" ? publicSites : sites;
++  const effectiveSiteId = selectedSiteId || (visibleSites.length > 0 ? visibleSites[0].id : "");
+   const handleSelectSite = useCallback((id: string) => { setSelectedSiteId(id); }, []);
+-  const currentSite = sites.find((s) => s.id === effectiveSiteId);
++  const currentSite = visibleSites.find((s) => s.id === effectiveSiteId);
+   const siteName = currentSite?.name || "MoreWithAI";
+ 
+   const handleAuth = useCallback(() => {
+@@ -122,7 +132,7 @@
+     if (readingArticle && effectiveSiteId) {
+       return <BlogArticleView siteId={effectiveSiteId} siteName={siteName} article={readingArticle} onBack={() => setReadingArticle(null)} onGoAdmin={() => setMode("admin")} />;
+     }
+-    if (sites.length === 0) {
++    if (publicSites.length === 0) {
+       return (
+         <div className="flex min-h-svh items-center justify-center p-4">
+           <div className="text-center">
+diff -ruN '--exclude=node_modules' '--exclude=bun.lock' '--exclude=package-lock.json' pristine/Morewithai-main/src/lib/api.ts Morewithai-main/src/lib/api.ts
+--- pristine/Morewithai-main/src/lib/api.ts	2026-09-03 13:54:42.000000000 +0000
++++ Morewithai-main/src/lib/api.ts	2026-09-04 20:20:59.439731514 +0000
+@@ -29,6 +29,7 @@
+ 
+ // Sites
+ export function getSites() { return fetchAPI<Site[]>('/api/sites'); }
++export function getPublicSites() { return fetchAPI<Site[]>('/api/public/sites'); }
+ export function createSite(data: { name: string; slug: string; description?: string }) { return fetchAPI<Site>('/api/sites', { method: 'POST', body: JSON.stringify(data) }); }
+ export function updateSite(data: { id: string; name?: string; slug?: string; description?: string; isActive?: boolean }) { return fetchAPI<Site>('/api/sites', { method: 'PUT', body: JSON.stringify(data) }); }
+ export function deleteSite(id: string) { return fetchAPI<{ success: boolean }>(`/api/sites?id=${id}`, { method: 'DELETE' }); }
+diff -ruN '--exclude=node_modules' '--exclude=bun.lock' '--exclude=package-lock.json' pristine/Morewithai-main/src/lib/monetization/course-builder.service.ts Morewithai-main/src/lib/monetization/course-builder.service.ts
+--- pristine/Morewithai-main/src/lib/monetization/course-builder.service.ts	2026-09-03 13:54:42.000000000 +0000
++++ Morewithai-main/src/lib/monetization/course-builder.service.ts	2026-09-03 20:02:05.622453536 +0000
+@@ -1,4 +1,5 @@
+ import { db } from '@/lib/db';
++import { createProductCheckoutSession } from '@/lib/stripe/service';
+ 
+ // ─── Types ──────────────────────────────────────────────────
+ 
+@@ -38,26 +39,58 @@
+   order: number;
+ }
+ 
+-export interface CourseEnrollment {
+-  id: string;
+-  courseId: string;
+-  subscriberId: string;
+-  progress: number; // 0-100
+-  completedLessons: string[];
+-  enrolledAt: string;
+-  lastAccessedAt: string;
++// ─── Content helpers (persisted as JSON on Product.content) ─
++
++function parseContent(content: string | null): CourseChapter[] {
++  if (!content) return [];
++  try {
++    const parsed = JSON.parse(content);
++    return Array.isArray(parsed) ? parsed : [];
++  } catch {
++    return [];
++  }
++}
++
++function summarize(chapters: CourseChapter[]) {
++  const totalLessons = chapters.reduce((s, c) => s + c.lessons.length, 0);
++  const totalDuration = chapters.reduce(
++    (s, c) => s + c.lessons.reduce((ls, l) => ls + l.duration, 0),
++    0,
++  );
++  return { totalLessons, totalDuration };
++}
++
++function toCourse(p: {
++  id: string; name: string; slug: string; description: string; price: number;
++  currency: string; imageUrl: string | null; status: string; purchaseCount: number;
++  revenueGenerated: number; content: string | null; createdAt: Date;
++}, siteId: string): Course {
++  const chapters = parseContent(p.content);
++  const { totalLessons, totalDuration } = summarize(chapters);
++  return {
++    id: p.id,
++    siteId,
++    name: p.name,
++    slug: p.slug,
++    description: p.description,
++    price: p.price,
++    currency: p.currency,
++    imageUrl: p.imageUrl,
++    status: p.status,
++    purchaseCount: p.purchaseCount,
++    revenueGenerated: p.revenueGenerated,
++    chapters,
++    totalLessons,
++    totalDuration,
++    createdAt: p.createdAt.toISOString(),
++  };
+ }
+ 
+ // ─── Course Management ──────────────────────────────────────
+ 
+ export async function createCourse(
+   siteId: string,
+-  data: {
+-    name: string;
+-    description: string;
+-    price: number;
+-    imageUrl?: string;
+-  },
++  data: { name: string; description: string; price: number; imageUrl?: string },
+ ): Promise<Course> {
+   const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+ 
+@@ -72,26 +105,11 @@
+       productType: 'COURSE',
+       imageUrl: data.imageUrl || null,
+       status: 'DRAFT',
++      content: JSON.stringify([]),
+     },
+   });
+ 
+-  return {
+-    id: product.id,
+-    siteId,
+-    name: product.name,
+-    slug: product.slug,
+-    description: product.description,
+-    price: product.price,
+-    currency: product.currency,
+-    imageUrl: product.imageUrl,
+-    status: product.status,
+-    purchaseCount: product.purchaseCount,
+-    revenueGenerated: product.revenueGenerated,
+-    chapters: [],
+-    totalLessons: 0,
+-    totalDuration: 0,
+-    createdAt: product.createdAt.toISOString(),
+-  };
++  return toCourse(product, siteId);
+ }
+ 
+ export async function getCourses(siteId: string): Promise<Course[]> {
+@@ -99,24 +117,7 @@
+     where: { siteId, productType: 'COURSE' },
+     orderBy: { createdAt: 'desc' },
+   });
+-
+-  return products.map((p) => ({
+-    id: p.id,
+-    siteId,
+-    name: p.name,
+-    slug: p.slug,
+-    description: p.description,
+-    price: p.price,
+-    currency: p.currency,
+-    imageUrl: p.imageUrl,
+-    status: p.status,
+-    purchaseCount: p.purchaseCount,
+-    revenueGenerated: p.revenueGenerated,
+-    chapters: [],
+-    totalLessons: 0,
+-    totalDuration: 0,
+-    createdAt: p.createdAt.toISOString(),
+-  }));
++  return products.map((p) => toCourse(p, siteId));
+ }
+ 
+ export async function updateCourse(
+@@ -124,9 +125,7 @@
+   siteId: string,
+   data: Partial<{ name: string; description: string; price: number; imageUrl: string; status: string }>,
+ ): Promise<Course | null> {
+-  const product = await db.product.findFirst({
+-    where: { id: courseId, siteId },
+-  });
++  const product = await db.product.findFirst({ where: { id: courseId, siteId } });
+   if (!product) return null;
+ 
+   const updated = await db.product.update({
+@@ -140,23 +139,7 @@
+     },
+   });
+ 
+-  return {
+-    id: updated.id,
+-    siteId,
+-    name: updated.name,
+-    slug: updated.slug,
+-    description: updated.description,
+-    price: updated.price,
+-    currency: updated.currency,
+-    imageUrl: updated.imageUrl,
+-    status: updated.status,
+-    purchaseCount: updated.purchaseCount,
+-    revenueGenerated: updated.revenueGenerated,
+-    chapters: [],
+-    totalLessons: 0,
+-    totalDuration: 0,
+-    createdAt: updated.createdAt.toISOString(),
+-  };
++  return toCourse(updated, siteId);
+ }
+ 
+ export async function deleteCourse(courseId: string, siteId: string): Promise<boolean> {
+@@ -166,19 +149,18 @@
+   return true;
+ }
+ 
+-// ─── Course Content (stored as JSON in product metadata) ────
+-
+-const courseContent = new Map<string, CourseChapter[]>();
++// ─── Course Content (persisted as JSON on Product.content) ──
+ 
+ export async function getCourseContent(courseId: string): Promise<CourseChapter[]> {
+-  return courseContent.get(courseId) || [];
++  const product = await db.product.findUnique({ where: { id: courseId }, select: { content: true } });
++  return parseContent(product?.content ?? null);
+ }
+ 
+ export async function updateCourseContent(
+   courseId: string,
+   chapters: CourseChapter[],
+ ): Promise<CourseChapter[]> {
+-  courseContent.set(courseId, chapters);
++  await db.product.update({ where: { id: courseId }, data: { content: JSON.stringify(chapters) } });
+   return chapters;
+ }
+ 
+@@ -186,7 +168,7 @@
+   courseId: string,
+   data: { title: string; description: string },
+ ): Promise<CourseChapter> {
+-  const chapters = courseContent.get(courseId) || [];
++  const chapters = await getCourseContent(courseId);
+   const chapter: CourseChapter = {
+     id: `ch-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+     title: data.title,
+@@ -195,7 +177,7 @@
+     lessons: [],
+   };
+   chapters.push(chapter);
+-  courseContent.set(courseId, chapters);
++  await updateCourseContent(courseId, chapters);
+   return chapter;
+ }
+ 
+@@ -204,7 +186,7 @@
+   chapterId: string,
+   data: { title: string; type: CourseLesson['type']; content: string; duration: number; isPreview?: boolean },
+ ): Promise<CourseLesson> {
+-  const chapters = courseContent.get(courseId) || [];
++  const chapters = await getCourseContent(courseId);
+   const chapter = chapters.find((c) => c.id === chapterId);
+   if (!chapter) throw new Error('Chapter not found');
+ 
+@@ -218,45 +200,35 @@
+     order: chapter.lessons.length + 1,
+   };
+   chapter.lessons.push(lesson);
+-  courseContent.set(courseId, chapters);
++  await updateCourseContent(courseId, chapters);
+   return lesson;
+ }
+ 
+-// ─── Enrollment & Progress ──────────────────────────────────
++// ─── Checkout & Access ───────────────────────────────────────
+ 
+-export async function enrollInCourse(
++/**
++ * Starts a real Stripe checkout for a reader buying this course.
++ * Does NOT grant access — access is only granted once the webhook
++ * confirms payment (see handleProductPurchaseComplete in stripe/service.ts).
++ */
++export async function createCourseCheckoutSession(
+   courseId: string,
+-  subscriberId: string,
+-): Promise<CourseEnrollment> {
+-  const product = await db.product.findUnique({ where: { id: courseId } });
+-  if (!product) throw new Error('Course not found');
+-
+-  await db.productPurchase.create({
+-    data: {
+-      siteId: product.siteId,
+-      productId: courseId,
+-      subscriberId,
+-      email: `user-${subscriberId}@placeholder.com`,
+-      amount: product.price,
+-      currency: product.currency,
+-      status: 'COMPLETED',
+-    },
++  email: string,
++  successUrl: string,
++  cancelUrl: string,
++) {
++  return createProductCheckoutSession({ productId: courseId, email, successUrl, cancelUrl });
++}
++
++/**
++ * Whether this email has a completed purchase for this course.
++ * Use this to gate lesson content on a "my courses" / course player page.
++ */
++export async function getCourseAccess(courseId: string, email: string): Promise<boolean> {
++  const purchase = await db.productPurchase.findFirst({
++    where: { productId: courseId, email, status: 'COMPLETED' },
+   });
+-
+-  await db.product.update({
+-    where: { id: courseId },
+-    data: { purchaseCount: { increment: 1 }, revenueGenerated: { increment: product.price } },
+-  });
+-
+-  return {
+-    id: `enrollment-${Date.now()}`,
+-    courseId,
+-    subscriberId,
+-    progress: 0,
+-    completedLessons: [],
+-    enrolledAt: new Date().toISOString(),
+-    lastAccessedAt: new Date().toISOString(),
+-  };
++  return !!purchase;
+ }
+ 
+ export async function getCourseAnalytics(siteId: string): Promise<{
+diff -ruN '--exclude=node_modules' '--exclude=bun.lock' '--exclude=package-lock.json' pristine/Morewithai-main/src/lib/monetization/paid-newsletters.service.ts Morewithai-main/src/lib/monetization/paid-newsletters.service.ts
+--- pristine/Morewithai-main/src/lib/monetization/paid-newsletters.service.ts	2026-09-03 13:54:42.000000000 +0000
++++ Morewithai-main/src/lib/monetization/paid-newsletters.service.ts	2026-09-04 14:18:45.082180964 +0000
+@@ -1,4 +1,5 @@
+ import { db } from '@/lib/db';
++import { createReaderSubscriptionCheckoutSession } from '@/lib/stripe/service';
+ 
+ // ─── Types ──────────────────────────────────────────────────
+ 
+@@ -55,11 +56,10 @@
+ ): Promise<NewsletterTier> {
+   const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+ 
+-  // Create as a Plan
+   const plan = await db.plan.create({
+     data: {
+       name: data.name,
+-      slug: `newsletter-${slug}`,
++      slug: `newsletter-${siteId}-${slug}`,
+       description: data.description,
+       price: data.price,
+       currency: 'NGN',
+@@ -88,11 +88,10 @@
+ }
+ 
+ export async function getNewsletterTiers(siteId: string): Promise<NewsletterTier[]> {
+-  // Get all newsletter plans
+   const plans = await db.plan.findMany({
+-    where: { slug: { startsWith: 'newsletter-' } },
++    where: { slug: { startsWith: `newsletter-${siteId}-` } },
+     include: {
+-      _count: { select: { subscriptions: true } },
++      _count: { select: { readerSubscriptions: true } },
+     },
+   });
+ 
+@@ -107,12 +106,30 @@
+     interval: p.interval as NewsletterTier['interval'],
+     features: (() => { try { return JSON.parse(p.features || '[]'); } catch { return []; } })(),
+     stripePriceId: p.stripePriceId,
+-    subscriberCount: p._count.subscriptions,
++    subscriberCount: p._count.readerSubscriptions,
+     isActive: p.isActive,
+     createdAt: p.createdAt.toISOString(),
+   }));
+ }
+ 
++// ─── Checkout ────────────────────────────────────────────────
++
++/**
++ * Starts a real Stripe subscription checkout for a reader buying this tier.
++ * The Plan needs a stripePriceId configured first (create the Price in Stripe,
++ * save its id on the Plan). Access is only granted once the webhook confirms
++ * the subscription was actually created.
++ */
++export async function createNewsletterCheckoutSession(
++  siteId: string,
++  tierId: string,
++  email: string,
++  successUrl: string,
++  cancelUrl: string,
++) {
++  return createReaderSubscriptionCheckoutSession({ siteId, planId: tierId, email, successUrl, cancelUrl });
++}
++
+ // ─── Subscriber Management ──────────────────────────────────
+ 
+ export async function getPremiumSubscribers(siteId: string): Promise<{
+@@ -122,59 +139,52 @@
+   subscribedAt: string;
+   status: string;
+ }[]> {
+-  const subs = await db.subscription.findMany({
+-    where: { status: 'ACTIVE' },
+-    include: { plan: true },
++  const subs = await db.readerSubscription.findMany({
++    where: { siteId, status: 'ACTIVE' },
++    include: { plan: true, subscriber: true },
+     orderBy: { createdAt: 'desc' },
+   });
+ 
+-  // Filter to newsletter subscriptions for this site
+-  return subs
+-    .filter((s) => s.plan.slug.startsWith('newsletter-'))
+-    .map((s) => ({
+-      email: 'subscriber@example.com', // Would come from user profile in production
+-      firstName: null,
+-      tier: s.plan.name,
+-      subscribedAt: s.createdAt.toISOString(),
+-      status: s.status,
+-    }));
++  return subs.map((s) => ({
++    email: s.subscriber.email,
++    firstName: s.subscriber.firstName,
++    tier: s.plan.name,
++    subscribedAt: s.createdAt.toISOString(),
++    status: s.status,
++  }));
+ }
+ 
++/**
++ * Whether this email has active paid access to the given tier (Plan id).
++ * Filters by subscriber + plan explicitly — this used to check for *any*
++ * active subscription anywhere on the platform, which was a real access bug.
++ */
+ export async function checkPremiumAccess(
+   siteId: string,
+   email: string,
+-  requiredTierSlug: string,
++  requiredPlanId: string,
+ ): Promise<boolean> {
+   const subscriber = await db.subscriber.findFirst({
+     where: { siteId, email, status: 'SUBSCRIBED' },
+   });
+-
+   if (!subscriber) return false;
+ 
+-  // Check if they have an active subscription to the required tier
+-  const subscription = await db.subscription.findFirst({
+-    where: { status: 'ACTIVE' },
++  const subscription = await db.readerSubscription.findFirst({
++    where: { subscriberId: subscriber.id, planId: requiredPlanId, status: 'ACTIVE' },
+     include: { plan: true },
+   });
+-
+   if (!subscription) return false;
+ 
+-  // Lifetime access always grants access
+   if (subscription.plan.interval === 'LIFETIME') return true;
+ 
+-  // Check if subscription period is still active
+-  if (subscription.currentPeriodEnd && subscription.currentPeriodEnd > new Date()) {
+-    return true;
+-  }
+-
+-  return false;
++  return !!(subscription.currentPeriodEnd && subscription.currentPeriodEnd > new Date());
+ }
+ 
+ // ─── Newsletter Analytics ───────────────────────────────────
+ 
+ export async function getNewsletterAnalytics(siteId: string): Promise<NewsletterAnalytics> {
+   const totalSubscribers = await db.subscriber.count({ where: { siteId } });
+-  const activeSubscriptions = await db.subscription.count({ where: { status: 'ACTIVE' } });
++  const activeSubscriptions = await db.readerSubscription.count({ where: { siteId, status: 'ACTIVE' } });
+ 
+   const tiers = await getNewsletterTiers(siteId);
+ 
+@@ -211,6 +221,7 @@
+       originalContent: true,
+       excerpt: true,
+       seoDescription: true,
++      premiumTierId: true,
+     },
+   });
+ 
+@@ -219,9 +230,7 @@
+   const content = article.rewrittenContent || article.originalContent || '';
+   const teaserContent = content.slice(0, 500) + '...';
+ 
+-  // Check if this article has a newsletter tier requirement
+-  // (stored in article metadata or settings)
+-  const tierRequired = null; // In production, check article-specific settings
++  const tierRequired = article.premiumTierId;
+ 
+   if (!tierRequired) {
+     return { isGated: false, tierRequired: null, hasAccess: true, teaserContent: content, fullContent: content };
+diff -ruN '--exclude=node_modules' '--exclude=bun.lock' '--exclude=package-lock.json' pristine/Morewithai-main/src/lib/stripe/service.ts Morewithai-main/src/lib/stripe/service.ts
+--- pristine/Morewithai-main/src/lib/stripe/service.ts	2026-09-03 13:54:42.000000000 +0000
++++ Morewithai-main/src/lib/stripe/service.ts	2026-09-03 20:01:38.572161144 +0000
+@@ -107,6 +107,121 @@
+   };
+ }
+ 
++// ─── Reader-Facing Checkout (courses, ebooks, paid newsletters) ─
++
++/**
++ * One-time payment checkout for a Product (course, ebook, etc).
++ * Creates a PENDING ProductPurchase up front; the webhook flips it to
++ * COMPLETED once Stripe confirms payment. Never grants access before
++ * payment is confirmed.
++ */
++export async function createProductCheckoutSession(params: {
++  productId: string;
++  email: string;
++  successUrl: string;
++  cancelUrl: string;
++}) {
++  const { productId, email, successUrl, cancelUrl } = params;
++  const sdk = getStripe();
++
++  const product = await db.product.findUnique({ where: { id: productId } });
++  if (!product) throw new Error('Product not found');
++  if (product.status !== 'PUBLISHED') throw new Error('Product is not available for purchase');
++  if (product.price <= 0) throw new Error('This product is free — no checkout required');
++
++  const subscriber = await db.subscriber.upsert({
++    where: { email_siteId: { email, siteId: product.siteId } },
++    update: {},
++    create: { siteId: product.siteId, email, source: 'PRODUCT_PURCHASE' },
++  });
++
++  const purchase = await db.productPurchase.create({
++    data: {
++      siteId: product.siteId,
++      productId: product.id,
++      subscriberId: subscriber.id,
++      email,
++      amount: product.price,
++      currency: product.currency,
++      status: 'PENDING',
++      provider: 'STRIPE',
++    },
++  });
++
++  const session = await sdk.checkout.sessions.create({
++    mode: 'payment',
++    success_url: successUrl,
++    cancel_url: cancelUrl,
++    customer_email: email,
++    line_items: [
++      {
++        price_data: {
++          currency: product.currency.toLowerCase(),
++          product_data: { name: product.name, description: product.description },
++          unit_amount: Math.round(product.price * 100),
++        },
++        quantity: 1,
++      },
++    ],
++    metadata: {
++      kind: 'product_purchase',
++      purchaseId: purchase.id,
++      productId: product.id,
++    },
++  });
++
++  return session;
++}
++
++/**
++ * Subscription checkout for a reader buying a paid newsletter tier.
++ * Requires the Plan to have a stripePriceId (create it in Stripe first).
++ */
++export async function createReaderSubscriptionCheckoutSession(params: {
++  siteId: string;
++  planId: string;
++  email: string;
++  successUrl: string;
++  cancelUrl: string;
++}) {
++  const { siteId, planId, email, successUrl, cancelUrl } = params;
++  const sdk = getStripe();
++
++  const plan = await db.plan.findUnique({ where: { id: planId } });
++  if (!plan) throw new Error('Newsletter tier not found');
++  if (!plan.isActive) throw new Error('This tier is no longer available');
++  if (!plan.stripePriceId) {
++    throw new Error('This tier has no Stripe price configured yet. Add one in Settings before selling it.');
++  }
++
++  const subscriber = await db.subscriber.upsert({
++    where: { email_siteId: { email, siteId } },
++    update: {},
++    create: { siteId, email, source: 'NEWSLETTER_TIER' },
++  });
++
++  const existing = await db.readerSubscription.findFirst({
++    where: { subscriberId: subscriber.id, planId, status: { in: ['ACTIVE', 'TRIALING', 'PAST_DUE'] } },
++  });
++  if (existing) throw new Error('You already have an active subscription to this tier');
++
++  const session = await sdk.checkout.sessions.create({
++    mode: 'subscription',
++    success_url: successUrl,
++    cancel_url: cancelUrl,
++    customer_email: email,
++    line_items: [{ price: plan.stripePriceId, quantity: 1 }],
++    metadata: {
++      kind: 'reader_subscription',
++      subscriberId: subscriber.id,
++      siteId,
++      planId,
++    },
++  });
++
++  return session;
++}
++
+ // ─── Subscription Management ────────────────────────────────────
+ 
+ export async function cancelSubscription(subscriptionId: string) {
+@@ -211,6 +326,18 @@
+ }
+ 
+ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
++  const kind = session.metadata?.kind;
++
++  if (kind === 'product_purchase') {
++    await handleProductPurchaseComplete(session);
++    return;
++  }
++
++  if (kind === 'reader_subscription') {
++    await handleReaderSubscriptionCreated(session);
++    return;
++  }
++
+   const { organizationId, planId } = session.metadata || {};
+   if (!organizationId || !planId) return;
+ 
+@@ -261,6 +388,65 @@
+   });
+ }
+ 
++async function handleProductPurchaseComplete(session: Stripe.Checkout.Session) {
++  const { purchaseId, productId } = session.metadata || {};
++  if (!purchaseId || !productId) return;
++
++  const purchase = await db.productPurchase.findUnique({ where: { id: purchaseId } });
++  if (!purchase || purchase.status === 'COMPLETED') return; // already processed / not found
++
++  const paymentIntentId = typeof session.payment_intent === 'string'
++    ? session.payment_intent
++    : session.payment_intent?.id;
++
++  await db.productPurchase.update({
++    where: { id: purchaseId },
++    data: { status: 'COMPLETED', transactionId: paymentIntentId || session.id },
++  });
++
++  await db.product.update({
++    where: { id: productId },
++    data: {
++      purchaseCount: { increment: 1 },
++      revenueGenerated: { increment: purchase.amount },
++    },
++  });
++}
++
++async function handleReaderSubscriptionCreated(session: Stripe.Checkout.Session) {
++  const { subscriberId, siteId, planId } = session.metadata || {};
++  if (!subscriberId || !siteId || !planId) return;
++
++  const sdk = getStripe();
++  const subId = typeof session.subscription === 'string'
++    ? session.subscription
++    : session.subscription?.id;
++  if (!subId) return;
++
++  const stripeSub = await sdk.subscriptions.retrieve(subId);
++
++  const existing = await db.readerSubscription.findFirst({
++    where: { subscriberId, planId },
++  });
++
++  const data = {
++    status: stripeSub.status.toUpperCase(),
++    externalId: stripeSub.id,
++    provider: 'STRIPE',
++    currentPeriodStart: new Date((stripeSub as any).current_period_start * 1000),
++    currentPeriodEnd: new Date((stripeSub as any).current_period_end * 1000),
++    canceledAt: (stripeSub as any).canceled_at
++      ? new Date((stripeSub as any).canceled_at * 1000)
++      : null,
++  };
++
++  if (existing) {
++    await db.readerSubscription.update({ where: { id: existing.id }, data });
++  } else {
++    await db.readerSubscription.create({ data: { subscriberId, siteId, planId, ...data } });
++  }
++}
++
+ async function handleSubscriptionUpdate(stripeSub: Stripe.Subscription) {
+   const subscription = await db.subscription.findFirst({
+     where: { externalId: stripeSub.id },
+@@ -278,6 +464,24 @@
+           : null,
+       },
+     });
++    return;
++  }
++
++  const readerSub = await db.readerSubscription.findFirst({
++    where: { externalId: stripeSub.id },
++  });
++  if (readerSub) {
++    await db.readerSubscription.update({
++      where: { id: readerSub.id },
++      data: {
++        status: stripeSub.status.toUpperCase(),
++        currentPeriodStart: new Date((stripeSub as any).current_period_start * 1000),
++        currentPeriodEnd: new Date((stripeSub as any).current_period_end * 1000),
++        canceledAt: (stripeSub as any).canceled_at
++          ? new Date((stripeSub as any).canceled_at * 1000)
++          : null,
++      },
++    });
+   }
+ }
+ 
+@@ -291,42 +495,55 @@
+       where: { id: subscription.id },
+       data: { status: 'CANCELED', canceledAt: new Date() },
+     });
++    return;
++  }
++
++  const readerSub = await db.readerSubscription.findFirst({
++    where: { externalId: stripeSub.id },
++  });
++  if (readerSub) {
++    await db.readerSubscription.update({
++      where: { id: readerSub.id },
++      data: { status: 'CANCELED', canceledAt: new Date() },
++    });
+   }
+ }
+ 
+ async function handlePaymentFailed(invoice: Stripe.Invoice) {
+   const invoiceAny = invoice as any;
+-  if (invoiceAny.subscription) {
+-    const subId = typeof invoiceAny.subscription === 'string'
+-      ? invoiceAny.subscription
+-      : invoiceAny.subscription.id;
+-    const subscription = await db.subscription.findFirst({
+-      where: { externalId: subId },
+-    });
+-    if (subscription) {
+-      await db.subscription.update({
+-        where: { id: subscription.id },
+-        data: { status: 'PAST_DUE' },
+-      });
+-    }
++  if (!invoiceAny.subscription) return;
++  const subId = typeof invoiceAny.subscription === 'string'
++    ? invoiceAny.subscription
++    : invoiceAny.subscription.id;
++
++  const subscription = await db.subscription.findFirst({ where: { externalId: subId } });
++  if (subscription) {
++    await db.subscription.update({ where: { id: subscription.id }, data: { status: 'PAST_DUE' } });
++    return;
++  }
++
++  const readerSub = await db.readerSubscription.findFirst({ where: { externalId: subId } });
++  if (readerSub) {
++    await db.readerSubscription.update({ where: { id: readerSub.id }, data: { status: 'PAST_DUE' } });
+   }
+ }
+ 
+ async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
+   const invoiceAny = invoice as any;
+-  if (invoiceAny.subscription) {
+-    const subId = typeof invoiceAny.subscription === 'string'
+-      ? invoiceAny.subscription
+-      : invoiceAny.subscription.id;
+-    const subscription = await db.subscription.findFirst({
+-      where: { externalId: subId },
+-    });
+-    if (subscription) {
+-      await db.subscription.update({
+-        where: { id: subscription.id },
+-        data: { status: 'ACTIVE' },
+-      });
+-    }
++  if (!invoiceAny.subscription) return;
++  const subId = typeof invoiceAny.subscription === 'string'
++    ? invoiceAny.subscription
++    : invoiceAny.subscription.id;
++
++  const subscription = await db.subscription.findFirst({ where: { externalId: subId } });
++  if (subscription) {
++    await db.subscription.update({ where: { id: subscription.id }, data: { status: 'ACTIVE' } });
++    return;
++  }
++
++  const readerSub = await db.readerSubscription.findFirst({ where: { externalId: subId } });
++  if (readerSub) {
++    await db.readerSubscription.update({ where: { id: readerSub.id }, data: { status: 'ACTIVE' } });
+   }
+ }
+ 
